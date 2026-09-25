@@ -52,6 +52,7 @@ final class AppModel {
     @ObservationIgnored private var previewClients: Set<String> = []
     @ObservationIgnored private var paletteFrame: CGRect?
     @ObservationIgnored private var permissionTimer: Timer?
+    @ObservationIgnored private var permissionWatchers: Set<String> = []
     @ObservationIgnored private let isDemo: Bool
 
     /// - Parameter demo: builds a model with fake live data and no side
@@ -197,8 +198,8 @@ final class AppModel {
     private var isPreviewing: Bool { !previewClients.isEmpty }
 
     var debugClients: String {
-        String(format: "fps=%.0f ms=%.1f detect/s=%.1f face=%@ ", live.fps, live.processingMs, live.detectionsPerSecond,
-               live.status.faceVisible ? "yes" : "no") + "frames=\(frameClients.sorted()) previews=\(previewClients.sorted())"
+        String(format: "fps=%.0f ms=%.1f detect/s=%.1f face=%@ ax=%@ ", live.fps, live.processingMs, live.detectionsPerSecond,
+               live.status.faceVisible ? "yes" : "no", Permissions.accessibility.isGranted ? "yes" : "no") + "frames=\(frameClients.sorted()) previews=\(previewClients.sorted())"
     }
 
     // MARK: - Calibration
@@ -272,12 +273,17 @@ final class AppModel {
 
     /// Polls permissions while a screen that shows them is open, because
     /// macOS does not notify when the user flips a switch in System Settings.
-    func watchPermissions(_ on: Bool) {
-        permissionTimer?.invalidate()
-        permissionTimer = nil
-        guard on else { return }
-        permissionTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.refreshPermissions() }
+    /// Counted per screen, so closing one does not stop another's polling.
+    func watchPermissions(_ on: Bool, client: String = "default") {
+        if on { permissionWatchers.insert(client) } else { permissionWatchers.remove(client) }
+        if permissionWatchers.isEmpty {
+            permissionTimer?.invalidate()
+            permissionTimer = nil
+        } else if permissionTimer == nil {
+            refreshPermissions()
+            permissionTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+                MainActor.assumeIsolated { self?.refreshPermissions() }
+            }
         }
     }
 

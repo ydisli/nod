@@ -43,8 +43,8 @@ struct OnboardingView: View {
         }
         .frame(width: 780, height: 540)
         .environment(\.colorScheme, .dark)
-        .onAppear { model.watchPermissions(true) }
-        .onDisappear { model.watchPermissions(false) }
+        .onAppear { model.watchPermissions(true, client: "onboarding") }
+        .onDisappear { model.watchPermissions(false, client: "onboarding") }
     }
 
     // MARK: Steps

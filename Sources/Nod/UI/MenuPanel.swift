@@ -22,9 +22,12 @@ struct MenuPanel: View {
         .frame(width: 332)
         .onAppear {
             model.retainFrames("menu")
-            model.refreshPermissions()
+            model.watchPermissions(true, client: "menu")
         }
-        .onDisappear { model.releaseFrames("menu") }
+        .onDisappear {
+            model.releaseFrames("menu")
+            model.watchPermissions(false, client: "menu")
+        }
     }
 
     private var header: some View {
@@ -72,7 +75,7 @@ struct MenuPanel: View {
             }
         } else if model.isEnabled, model.accessibilityPermission != .granted {
             Callout(symbol: "hand.raised.fill", color: Theme.gold, title: "Allow Nod to move the pointer",
-                    detail: "Add Nod under Privacy & Security, Accessibility.", button: "Allow") {
+                    detail: "Turn on Nod in Accessibility. Already on? Remove it with −, then Allow again.", button: "Allow") {
                 Permissions.promptAccessibility()
                 Permissions.openAccessibilitySettings()
             }

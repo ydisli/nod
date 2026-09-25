@@ -696,8 +696,8 @@ struct PermissionsPane: View {
             }
         }
         .formStyle(.grouped)
-        .onAppear { model.watchPermissions(true) }
-        .onDisappear { model.watchPermissions(false) }
+        .onAppear { model.watchPermissions(true, client: "settings.permissions") }
+        .onDisappear { model.watchPermissions(false, client: "settings.permissions") }
     }
 }
 

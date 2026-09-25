@@ -28,8 +28,18 @@ sed -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD_NUMBER/" Support/Info.pl
 cp Support/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 
-echo "› Signing ($([ "$SIGN_IDENTITY" = "-" ] && echo ad-hoc || echo "$SIGN_IDENTITY"))"
-codesign --force --options runtime --entitlements Support/Nod.entitlements --sign "$SIGN_IDENTITY" "$APP"
+if [ "$SIGN_IDENTITY" = "-" ]; then
+  # Ad-hoc signatures normally pin macOS privacy grants to the exact build
+  # (a cdhash), so Accessibility had to be granted again after every build.
+  # For local builds, pin the requirement to the bundle identifier instead.
+  # Distribute only builds signed with a real identity.
+  echo "› Signing (ad-hoc, local build)"
+  codesign --force --options runtime --entitlements Support/Nod.entitlements --sign - \
+    --requirements '=designated => identifier "com.slipperysign.nod"' "$APP"
+else
+  echo "› Signing ($SIGN_IDENTITY)"
+  codesign --force --options runtime --entitlements Support/Nod.entitlements --sign "$SIGN_IDENTITY" "$APP"
+fi
 codesign --verify --strict "$APP"
 
 echo "✓ $APP"
