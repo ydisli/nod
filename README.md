@@ -51,6 +51,11 @@ With AirPods, leaning your head sideways clicks, because leaning does not steer:
 
 A nod clicks where the pointer was before your head went down.
 
+**Clicking with keys.** Steer with your head and click with a key, which never moves the
+pointer. Tap right ⌘ to click, tap it twice to double click, hold it to drag; tap right ⌥ to
+right click. Any right-hand modifier can take any of these jobs. Only lone presses count, so
+shortcuts keep working, and Nod never records what you type.
+
 **Dwell clicking.** Rest the pointer and a ring fills, then clicks. A floating palette of big
 targets picks what the next dwell does: right click, double click, drag, scroll or pause. You can
 dwell on the palette itself, so no gesture is ever required.

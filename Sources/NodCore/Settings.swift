@@ -366,6 +366,8 @@ public struct NodSettings: Codable, Sendable, Equatable {
     public var headGestures: [HeadGesture: GestureBinding] = Dictionary(uniqueKeysWithValues: HeadGesture.allCases.map { ($0, GestureBinding.defaults(for: $0)) })
     /// Freeze the pointer while a face gesture forms, so clicks land where aimed.
     public var holdSteadyWhileGesturing: Bool = true
+    /// Click with the right-hand modifier keys while the head steers.
+    public var clickKeys = ClickKeys()
     public var dwell = DwellSettings()
 
     public var showHalo: Bool = true
@@ -420,6 +422,7 @@ public struct NodSettings: Codable, Sendable, Equatable {
         for (k, v) in c.value(.headGestures, default: [HeadGesture: GestureBinding]()) { h[k] = v }
         headGestures = h
         holdSteadyWhileGesturing = c.value(.holdSteadyWhileGesturing, default: d.holdSteadyWhileGesturing)
+        clickKeys = c.value(.clickKeys, default: d.clickKeys)
         dwell = c.value(.dwell, default: d.dwell)
         showHalo = c.value(.showHalo, default: d.showHalo)
         playSounds = c.value(.playSounds, default: d.playSounds)

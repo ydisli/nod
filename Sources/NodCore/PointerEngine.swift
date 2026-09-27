@@ -120,6 +120,7 @@ public final class PointerEngine {
     public var yieldDistance = 12.0
 
     private var gestures = GestureDetector()
+    private var keyClicks = KeyClickDetector()
     private var headGestures = HeadGestureDetector()
     /// Head pose linked to the display centre, for direct aiming with AirPods.
     private var headNeutral: Vec2?
@@ -587,6 +588,50 @@ public final class PointerEngine {
         }
     }
 
+    // MARK: - Keys
+
+    /// Feeds a click key. The pointer does not move while you press a key,
+    /// which is what makes keys the steadiest way to click.
+    public func key(_ event: KeyClickEvent, time: Double) -> [PointerCommand] {
+        guard !suspended else { return [] }
+        return performKeys(keyClicks.handle(event, time: time, keys: settings.clickKeys), time: time)
+    }
+
+    private func performKeys(_ outputs: [KeyClickOutput], time: Double) -> [PointerCommand] {
+        guard !outputs.isEmpty else { return [] }
+        var out: [PointerCommand] = []
+        for o in outputs {
+            switch o {
+            case .tap:
+                // A tap drops a drag that a gesture or the palette started.
+                if dragButtonDown {
+                    out += endDrag()
+                    continue
+                }
+                guard !status.paused else { continue }
+                // Press and release rather than a click, so two quick taps
+                // count up into a real double click.
+                out += [.press(.left, at: pointer), .release(.left, at: pointer), .feedback(.performed(.leftClick))]
+                // Keep the spot still long enough for a second tap to land on it.
+                freezeUntil = max(freezeUntil, time + 0.25)
+            case .press:
+                guard !status.paused, !dragButtonDown else { continue }
+                dragButtonDown = true
+                holdGesture = nil
+                holdBegan = nil
+                out += [.press(.left, at: pointer), .feedback(.dragStarted)]
+            case .release:
+                out += endDrag()
+            case .rightClick:
+                out += perform(.rightClick, time: time)
+            case .doubleClick:
+                out += perform(.doubleClick, time: time)
+            }
+        }
+        refreshStatus()
+        return out
+    }
+
     // MARK: - Clock
 
     /// Advances the pointer. Call at display rate (about 60 Hz).
@@ -595,7 +640,7 @@ public final class PointerEngine {
         guard !suspended else { return [] }
         let dt = lastTick.map { (time - $0).clamped(0, 0.1) } ?? 0
         lastTick = time
-        var out: [PointerCommand] = []
+        var out = performKeys(keyClicks.tick(time: time, keys: settings.clickKeys), time: time)
 
         guard let posted = lastPosted else {
             pointer = cursor

@@ -172,6 +172,21 @@ final class TrackingPipeline: NSObject, AVCaptureVideoDataOutputSampleBufferDele
         }
     }
 
+    /// A click key went down or up, or another key was pressed.
+    func key(_ event: KeyClickEvent) {
+        queue.async {
+            guard self.running else { return }
+            let button = self.settings.clickKeys.leftButton
+            switch event {
+            case let .down(k) where k == button: self.driver.suppressedFlags = k.eventFlags
+            case let .up(k) where k == button: self.driver.suppressedFlags = []
+            default: break
+            }
+            self.execute(self.engine.key(event, time: Self.now()))
+            self.publishHUD()
+        }
+    }
+
     func setDwellOverride(_ action: PointerAction?) {
         queue.async {
             self.engine.setDwellOverride(action)

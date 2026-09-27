@@ -146,6 +146,9 @@ struct OnboardingView: View {
         return VStack(alignment: .leading, spacing: 18) {
             stepTitle("How do you want to click?", "Pick any combination. Each can be tuned later.")
             VStack(spacing: 10) {
+                ToggleCard(symbol: "keyboard", title: "Tap right ⌘ to click",
+                           detail: "Right ⌥ right clicks. Tap twice to double click, hold to drag.",
+                           isOn: $model.settings.clickKeys.enabled)
                 ToggleCard(symbol: HeadGesture.tiltLeft.symbol, title: "Lean your head left to click",
                            detail: "Keep leaning to hold the button, then turn to drag.",
                            isOn: headBinding(.tiltLeft))

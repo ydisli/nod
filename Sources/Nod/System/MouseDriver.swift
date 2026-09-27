@@ -12,6 +12,8 @@ final class MouseDriver {
     private var lastPress: (time: Double, point: CGPoint, button: MouseButton)?
     private var clickCount = 1
     private var scrollRemainder = CGVector.zero
+    /// Modifiers to leave off posted mouse events: the click key being held.
+    var suppressedFlags: CGEventFlags = []
 
     /// Where the system cursor is right now, in global display points (y down).
     static func cursorLocation() -> Vec2 {
@@ -97,6 +99,7 @@ final class MouseDriver {
     private func post(_ type: CGEventType, button: MouseButton, at p: CGPoint, clickState: Int) {
         guard let e = CGEvent(mouseEventSource: source, mouseType: type, mouseCursorPosition: p, mouseButton: cgButton(button)) else { return }
         if clickState > 0 { e.setIntegerValueField(.mouseEventClickState, value: Int64(clickState)) }
+        if !suppressedFlags.isEmpty { e.flags.subtract(suppressedFlags) }
         e.post(tap: .cghidEventTap)
     }
 

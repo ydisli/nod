@@ -45,8 +45,23 @@ enum DevHooks {
             } else {
                 try? line.write(to: url, atomically: true, encoding: .utf8)
             }
+        case "pause": model.perform(.pauseToggle)
+        case "keytest": postRightCommandTap()
         case "quit": NSApp.terminate(nil)
         default: print("Unknown dev command: \(command)")
+        }
+    }
+
+    /// Posts a lone right ⌘ press and release, to check that the click key
+    /// monitor hears real key events. Pause first, or it clicks.
+    private static func postRightCommandTap() {
+        let source = CGEventSource(stateID: .hidSystemState)
+        for down in [true, false] {
+            guard let e = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(ClickKey.rightCommand.keyCode ?? 0), keyDown: down) else { continue }
+            e.type = .flagsChanged
+            e.flags = down ? ClickKey.rightCommand.eventFlags : []
+            e.post(tap: .cghidEventTap)
+            if down { usleep(80_000) }
         }
     }
 

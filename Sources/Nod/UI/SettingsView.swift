@@ -11,7 +11,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         switch self {
         case .general: "General"
         case .pointer: "Pointer"
-        case .clicking: "Gestures"
+        case .clicking: "Clicking"
         case .dwell: "Dwell Clicking"
         case .calibration: "Calibration"
         case .camera: "Camera"
@@ -25,7 +25,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         switch self {
         case .general: "gearshape.fill"
         case .pointer: "cursorarrow.motionlines"
-        case .clicking: "face.smiling"
+        case .clicking: "cursorarrow.click"
         case .dwell: "timer"
         case .calibration: "scope"
         case .camera: "camera.fill"
@@ -53,7 +53,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         switch self {
         case .general: "How Nod starts and gives feedback."
         case .pointer: "What steers the pointer and how it feels."
-        case .clicking: "Click, drag and more with your face or head. Meters show live strength, the line marks the trigger point."
+        case .clicking: "Click with a key, your face or your head. Meters show live strength, the line marks the trigger point."
         case .dwell: "Rest the pointer on something to click it. No gestures needed."
         case .calibration: "Teach Nod your range of movement and your expressions."
         case .camera: "Which camera Nod watches and how hard it works."
@@ -310,6 +310,7 @@ struct GesturesPane: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
+            ClickKeysSection()
             ForEach(HeadGesture.allCases) { g in
                 Section {
                     GestureRow(title: g.title, instruction: g.instruction, symbol: g.symbol,
@@ -342,6 +343,7 @@ struct GesturesPane: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
+            ClickKeysSection()
             ForEach(FaceGesture.allCases) { g in
                 Section {
                     GestureRow(title: g.title, instruction: g.instruction, symbol: g.symbol,
@@ -369,6 +371,50 @@ struct GesturesPane: View {
         }
         .formStyle(.grouped)
         .liveFrames(model, id: "settings.gestures", preview: true)
+    }
+}
+
+/// Steer with the head, click with a key.
+struct ClickKeysSection: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        @Bindable var model = model
+        Section {
+            Toggle(isOn: $model.settings.clickKeys.enabled) {
+                Text("Click with keys")
+                Text("A key press does not move your head, so the click lands exactly where you aimed.")
+            }
+            if model.settings.clickKeys.enabled {
+                keyPicker("Click", detail: "Tap twice to double click, hold to drag.", \.leftButton)
+                keyPicker("Right click", detail: nil, \.rightClick)
+                keyPicker("Double click", detail: "Optional, tapping the click key twice also works.", \.doubleClick)
+            }
+        } header: {
+            Text("Keys")
+        } footer: {
+            Text("Only the keys on the right side, and only when pressed on their own, so shortcuts keep working. Nod never records what you type.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private func keyPicker(_ title: String, detail: String?, _ path: WritableKeyPath<ClickKeys, ClickKey>) -> some View {
+        Picker(selection: Binding(get: { model.settings.clickKeys[keyPath: path] }, set: { new in
+            var keys = model.settings.clickKeys
+            // One key, one job: whoever had this key gives it up.
+            for other in [\ClickKeys.leftButton, \.rightClick, \.doubleClick] where other != path && keys[keyPath: other] == new && new != .off {
+                keys[keyPath: other] = .off
+            }
+            keys[keyPath: path] = new
+            model.settings.clickKeys = keys
+        })) {
+            ForEach(ClickKey.allCases) { k in
+                Text(k.title).tag(k)
+            }
+        } label: {
+            Text(title)
+            if let detail { Text(detail) }
+        }
     }
 }
 
@@ -763,6 +809,7 @@ struct PermissionsPane: View {
             Section("Privacy") {
                 Tip(symbol: "wifi.slash", text: "Nod makes no network connections. There is no account, analytics or telemetry.")
                 Tip(symbol: "internaldrive", text: "Only your settings and calibration numbers are saved, never images.")
+                Tip(symbol: "keyboard", text: "With click keys on, Nod notices when another key is pressed, only to tell a click from a shortcut. It never reads or keeps what you type.")
                 Tip(symbol: "chevron.left.forwardslash.chevron.right", text: "The source code is public, so anyone can check these promises.")
             }
         }

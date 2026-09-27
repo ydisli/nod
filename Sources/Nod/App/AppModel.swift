@@ -34,6 +34,7 @@ final class AppModel {
             Store.save(settings, key: Store.settingsKey)
             if settings.hotKeysDiffer(from: oldValue) { registerHotKeys() }
             if settings.displayID != oldValue.displayID { refreshEnvironment() }
+            if settings.clickKeys != oldValue.clickKeys { refreshKeyMonitor() }
             windows?.settingsChanged(from: oldValue)
         }
     }
@@ -66,6 +67,9 @@ final class AppModel {
     @ObservationIgnored private let isDemo: Bool
     /// Latest AirPods pose regardless of visible views, for diagnostics.
     @ObservationIgnored private var lastHead: HeadPose?
+    @ObservationIgnored private lazy var keyMonitor = KeyClickMonitor { [weak self] event in
+        self?.pipeline.key(event)
+    }
 
     /// - Parameter demo: builds a model with fake live data and no side
     ///   effects (no hotkeys, no stored settings), for screenshots.
@@ -155,7 +159,18 @@ final class AppModel {
             }
         }
         UserDefaults.standard.set(isEnabled, forKey: Store.enabledKey)
+        refreshKeyMonitor()
         windows?.trackingChanged()
+    }
+
+    /// Listens for click keys only while tracking is on and keys are wanted.
+    private func refreshKeyMonitor() {
+        guard !isDemo else { return }
+        if isEnabled, settings.clickKeys.enabled {
+            keyMonitor.start()
+        } else {
+            keyMonitor.stop()
+        }
     }
 
     func toggleEnabled() { setEnabled(!isEnabled) }
@@ -228,6 +243,7 @@ final class AppModel {
             }
             if let e = headphoneError { line += "error=\"\(e)\" " }
         }
+        line += "keys=\(keyMonitor.isRunning ? "on" : "off") keyEvents=\(keyMonitor.seen) "
         return line + "frames=\(frameClients.sorted()) previews=\(previewClients.sorted())"
     }
 
