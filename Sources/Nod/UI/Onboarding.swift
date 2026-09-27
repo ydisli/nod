@@ -57,7 +57,7 @@ struct OnboardingView: View {
                 Text("Meet Nod").font(.system(size: 38, weight: .bold))
                 Text("Your face is the mouse.")
                     .font(.system(size: 20, weight: .medium))
-                    .foregroundStyle(Theme.anodized)
+                    .foregroundStyle(.white.opacity(0.85))
                 Text("Move the pointer with your nose or your eyes. Click by opening your mouth, raising your eyebrows or simply resting on a spot. All through the camera you already have.")
                     .font(.system(size: 14))
                     .foregroundStyle(.white.opacity(0.72))
