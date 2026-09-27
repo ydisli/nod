@@ -113,9 +113,9 @@ struct OnboardingView: View {
             stepTitle("How do you want to steer?", "You can switch any time from the menu bar.")
             HStack(spacing: 14) {
                 ForEach(TrackingInput.allCases) { input in
-                    BigChoice(symbol: input == .nose ? "nose" : (input == .eyes ? "eye" : "sparkles"),
+                    BigChoice(symbol: input.symbol,
                               title: input.title, detail: input.summary,
-                              badge: input == .nose ? "Recommended" : (input == .eyes ? "Experimental" : nil),
+                              badge: badge(input),
                               selected: model.settings.input == input) {
                         model.settings.input = input
                     }
@@ -124,7 +124,46 @@ struct OnboardingView: View {
         }
     }
 
-    private var clicking: some View {
+    private func badge(_ input: TrackingInput) -> String? {
+        switch input {
+        case .nose: "Recommended"
+        case .eyes: "Experimental"
+        case .headphones: "No camera"
+        case .hybrid: nil
+        }
+    }
+
+    @ViewBuilder private var clicking: some View {
+        if model.settings.input.usesCamera {
+            faceClicking
+        } else {
+            headClicking
+        }
+    }
+
+    private var headClicking: some View {
+        @Bindable var model = model
+        return VStack(alignment: .leading, spacing: 18) {
+            stepTitle("How do you want to click?", "Pick any combination. Each can be tuned later.")
+            VStack(spacing: 10) {
+                ToggleCard(symbol: HeadGesture.tiltLeft.symbol, title: "Lean your head left to click",
+                           detail: "Keep leaning to hold the button, then turn to drag.",
+                           isOn: headBinding(.tiltLeft))
+                ToggleCard(symbol: HeadGesture.tiltRight.symbol, title: "Lean your head right to right click",
+                           detail: "Opens context menus.",
+                           isOn: headBinding(.tiltRight))
+                ToggleCard(symbol: "timer", title: "Rest on a spot to click",
+                           detail: "Dwell clicking, with a palette for right click, double click, drag and scroll.",
+                           isOn: $model.settings.dwell.enabled)
+                ToggleCard(symbol: HeadGesture.nod.symbol, title: "Nod to double click",
+                           detail: "A quick nod down and up. Glancing at the keyboard can look similar.",
+                           isOn: headBinding(.nod))
+            }
+        }
+        .frame(maxWidth: 640)
+    }
+
+    private var faceClicking: some View {
         @Bindable var model = model
         return VStack(alignment: .leading, spacing: 18) {
             stepTitle("How do you want to click?", "Pick any combination. Each can be tuned later.")
@@ -146,7 +185,29 @@ struct OnboardingView: View {
         .frame(maxWidth: 640)
     }
 
-    private var calibrate: some View {
+    @ViewBuilder private var calibrate: some View {
+        if model.settings.input.isCalibratable {
+            cameraCalibrate
+        } else {
+            VStack(spacing: 18) {
+                Image(systemName: "airpodspro")
+                    .font(.system(size: 64, weight: .light))
+                    .foregroundStyle(Theme.teal)
+                    .frame(height: 150)
+                Text("No calibration needed").font(.system(size: 26, weight: .bold))
+                Text("Put in your AirPods and look at the middle of the screen. Turn your head to move the pointer. If it ever drifts, press \(model.settings.recenterHotKey.display) to recentre.")
+                    .font(.system(size: 14))
+                    .foregroundStyle(.white.opacity(0.7))
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 480)
+                Text("macOS asks once to let Nod read headphone motion.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.white.opacity(0.45))
+            }
+        }
+    }
+
+    private var cameraCalibrate: some View {
         VStack(spacing: 18) {
             ZStack {
                 Circle().stroke(Theme.anodized, lineWidth: 3).frame(width: 110, height: 110)
@@ -191,7 +252,10 @@ struct OnboardingView: View {
                 Button(step == 0 ? "Get Started" : "Continue") { go(step + 1) }
                     .buttonStyle(PrimaryButtonStyle())
                     .keyboardShortcut(.defaultAction)
-                    .disabled(step == 1 && model.cameraPermission != .granted)
+            } else if !model.settings.input.isCalibratable {
+                Button("Start Nod") { finish(false) }
+                    .buttonStyle(PrimaryButtonStyle())
+                    .keyboardShortcut(.defaultAction)
             } else {
                 Button("Skip for Now") { finish(false) }
                     .buttonStyle(.plain)
@@ -223,6 +287,15 @@ struct OnboardingView: View {
             .padding(.horizontal, 10).padding(.vertical, 5)
             .background(Capsule().fill(.white.opacity(0.07)))
             .overlay(Capsule().strokeBorder(.white.opacity(0.1), lineWidth: 0.5))
+    }
+
+    private func headBinding(_ g: HeadGesture) -> Binding<Bool> {
+        Binding(get: { model.settings.binding(for: g).enabled },
+                set: { on in
+                    var b = model.settings.binding(for: g)
+                    b.enabled = on
+                    model.settings.headGestures[g] = b
+                })
     }
 
     private func gestureBinding(_ g: FaceGesture) -> Binding<Bool> {

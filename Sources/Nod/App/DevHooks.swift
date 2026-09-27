@@ -31,6 +31,7 @@ enum DevHooks {
         case "onboarding": windows.showOnboarding()
         case "palette": windows.togglePalette()
         case "calibrate": windows.startCalibration()
+        case "input": if let input = TrackingInput(rawValue: arg) { model.settings.input = input }
         case "enable": model.setEnabled(true)
         case "disable": model.setEnabled(false)
         case "snapshot": snapshot(to: arg.isEmpty ? NSTemporaryDirectory() + "nod-shots" : arg)

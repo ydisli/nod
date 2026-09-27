@@ -20,6 +20,7 @@ let package = Package(
                 .linkedFramework("AVFoundation"),
                 .linkedFramework("Vision"),
                 .linkedFramework("Carbon"),
+                .linkedFramework("CoreMotion"),
                 .linkedFramework("ServiceManagement"),
             ]
         ),

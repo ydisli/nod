@@ -1,4 +1,5 @@
 import AppKit
+import NodCore
 import SwiftUI
 
 /// Nod's visual language: deep graphite surfaces and an anodized titanium
@@ -20,6 +21,17 @@ enum Theme {
     static let heat = LinearGradient(colors: [teal, gold], startPoint: .leading, endPoint: .trailing)
 
     static let panel = LinearGradient(colors: [Color(hex: 0x171D2A), Color(hex: 0x0C1017)], startPoint: .top, endPoint: .bottom)
+}
+
+extension TrackingInput {
+    var symbol: String {
+        switch self {
+        case .nose: "nose"
+        case .eyes: "eye"
+        case .hybrid: "sparkles"
+        case .headphones: "airpodspro"
+        }
+    }
 }
 
 extension Color {
@@ -136,7 +148,16 @@ struct TileButtonStyle: ButtonStyle {
     var active = false
 
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
+        Tile(configuration: configuration, active: active)
+    }
+
+    private struct Tile: View {
+        let configuration: Configuration
+        let active: Bool
+        @Environment(\.isEnabled) private var isEnabled
+
+        var body: some View {
+            configuration.label
             .font(.system(size: 11, weight: .medium))
             .frame(maxWidth: .infinity)
             .padding(.vertical, 8)
@@ -149,7 +170,9 @@ struct TileButtonStyle: ButtonStyle {
                     .strokeBorder(.primary.opacity(0.08), lineWidth: 0.5)
             )
             .foregroundStyle(active ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
+            .opacity(isEnabled ? 1 : 0.4)
             .contentShape(Rectangle())
+        }
     }
 }
 

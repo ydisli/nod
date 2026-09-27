@@ -179,13 +179,23 @@ final class WindowManager: NSObject, NSPopoverDelegate, NSWindowDelegate {
     func startCalibration(input: TrackingInput? = nil, gesturesOnly: Bool = false) {
         closePopover()
         guard !calibration.isRunning else { return }
+        let target = input ?? model.settings.input.calibrationInput
+        if !gesturesOnly, input == nil, !target.isCalibratable {
+            // AirPods need no calibration; the shortcut recentres instead.
+            model.recenter()
+            return
+        }
+        if !model.settings.input.usesCamera {
+            // Calibrating the face means steering with it; the camera must run.
+            model.settings.input = gesturesOnly ? .nose : target
+        }
         guard model.cameraPermission == .granted else {
             showSettings(pane: .permissions)
             return
         }
         halo.hide()
         palette.hide()
-        let kind: CalibrationSession.Kind = gesturesOnly ? .gestures : .movement(input ?? model.settings.input.calibrationInput)
+        let kind: CalibrationSession.Kind = gesturesOnly ? .gestures : .movement(target)
         calibration.start(kind)
     }
 

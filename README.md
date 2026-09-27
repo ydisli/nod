@@ -10,7 +10,7 @@ Hands-free pointer control for macOS, through the camera you already have.</p>
   <img src="docs/screens/onboarding-0.jpg" width="720" alt="Nod's welcome screen with a live face mesh">
 </p>
 
-Nod follows your nose (or your eyes) to move the pointer, and turns expressions into clicks.
+Nod follows your nose (or your eyes, or your AirPods) to move the pointer, and turns expressions into clicks.
 Open your mouth to click, keep it open to drag, raise your eyebrows to right click, or simply
 rest on a spot. It lives in the menu bar, runs entirely on your Mac and is free and open source.
 
@@ -19,12 +19,15 @@ disability, an injury or RSI, and for anyone who wants their hands free.
 
 ## What it does
 
-**Three ways to steer**
+**Four ways to steer**
 
 - **Nose** (recommended). Relative motion that feels like a mouse, direct aiming where your nose
   points at a spot on screen, or a joystick that glides while you tilt away from centre.
 - **Eyes** (experimental). Look where you want to go. Webcam gaze is coarse, so it is honest about that.
 - **Hybrid**. Your eyes jump the pointer to the right area, your nose places it exactly.
+- **AirPods**. Turn your head with AirPods in. The camera stays off: AirPods with head tracking
+  for spatial audio measure the head's orientation themselves, so Nod only turns a few numbers
+  a second into pointer movement. No calibration, just Recentre.
 
 **Clicking with your face.** Six expressions, each mapped to any action you choose, with a live
 meter that shows how strong the expression is and where it triggers.
@@ -37,6 +40,16 @@ meter that shows how strong the expression is and where it triggers.
 | Smile, left wink, right wink | Off | |
 
 While an expression forms, Nod holds the pointer steady so the click lands where you aimed.
+
+With AirPods, leaning your head sideways clicks, because leaning does not steer:
+
+| Head movement | Default |
+| --- | --- |
+| Lean left | Left click, hold to drag |
+| Lean right | Right click |
+| Nod | Off (double click), since glancing at the keyboard looks similar |
+
+A nod clicks where the pointer was before your head went down.
 
 **Dwell clicking.** Rest the pointer and a ring fills, then clicks. A floating palette of big
 targets picks what the next dwell does: right click, double click, drag, scroll or pause. You can
@@ -76,10 +89,14 @@ shortcuts, launch at login, and it steps aside the moment a helper touches the r
 
 Measured on a MacBook Pro (Apple M5) with the built-in camera:
 
-| State | CPU | Memory |
-| --- | --- | --- |
-| Tracking, Balanced (24 fps) | about 21% of one core | about 165 MB |
-| Tracking off | 0% | about 80 MB |
+| State | CPU |
+| --- | --- |
+| Camera tracking, Balanced (24 fps) | about 21% of one core, plus the system camera service |
+| AirPods, waiting for them | 0.3% of one core |
+| Tracking off | 0% |
+
+The camera is the expensive part whatever reads it: macOS's own camera service costs CPU
+before any face analysis starts. The AirPods input avoids both.
 
 Full face detection, the expensive step, runs a few times per second; in between Nod carries the
 face box along with the landmarks. When nobody is in front of the camera it looks at a third of

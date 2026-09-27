@@ -7,7 +7,7 @@ import ServiceManagement
 
 // MARK: - Permissions
 
-enum PermissionStatus: Equatable {
+enum PermissionStatus: String, Equatable {
     case granted
     case denied
     case notDetermined
@@ -19,6 +19,16 @@ enum PermissionStatus: Equatable {
 enum Permissions {
     static var camera: PermissionStatus {
         switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized: .granted
+        case .notDetermined: .notDetermined
+        default: .denied
+        }
+    }
+
+    /// Headphone motion, for the AirPods input. macOS asks the first time
+    /// Nod starts reading it.
+    static var motion: PermissionStatus {
+        switch HeadphoneMotion.authorization {
         case .authorized: .granted
         case .notDetermined: .notDetermined
         default: .denied
@@ -43,6 +53,10 @@ enum Permissions {
 
     static func openAccessibilitySettings() {
         open("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+    }
+
+    static func openPrivacySettings() {
+        open("x-apple.systempreferences:com.apple.preference.security")
     }
 
     static func openCameraSettings() {

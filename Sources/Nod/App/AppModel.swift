@@ -15,6 +15,14 @@ final class LiveState {
     var processingMs: Double = 0
     var detectionsPerSecond: Double = 0
     var cameraRunning = false
+    /// AirPods input: the stream is running, the headphones are connected,
+    /// and the latest pose (only while a view shows it).
+    var headphonesRunning = false
+    var headphonesConnected = false
+    var head: HeadPose?
+
+    /// The chosen source is running.
+    var sourceRunning: Bool { cameraRunning || headphonesRunning }
 }
 
 @MainActor @Observable
@@ -41,7 +49,9 @@ final class AppModel {
 
     private(set) var cameraPermission: PermissionStatus = .notDetermined
     private(set) var accessibilityPermission: PermissionStatus = .denied
+    private(set) var motionPermission: PermissionStatus = .notDetermined
     private(set) var cameraError: String?
+    private(set) var headphoneError: String?
     private(set) var cameraDevices: [CameraDevice] = []
 
     @ObservationIgnored weak var windows: WindowManager?
@@ -54,6 +64,8 @@ final class AppModel {
     @ObservationIgnored private var permissionTimer: Timer?
     @ObservationIgnored private var permissionWatchers: Set<String> = []
     @ObservationIgnored private let isDemo: Bool
+    /// Latest AirPods pose regardless of visible views, for diagnostics.
+    @ObservationIgnored private var lastHead: HeadPose?
 
     /// - Parameter demo: builds a model with fake live data and no side
     ///   effects (no hotkeys, no stored settings), for screenshots.
@@ -99,7 +111,15 @@ final class AppModel {
 
     func setEnabled(_ on: Bool) {
         guard on != isEnabled else { return }
-        if on {
+        if on, !settings.input.usesCamera {
+            // AirPods need no camera; macOS asks for Motion access itself.
+            headphoneError = nil
+            isEnabled = true
+            if !isCalibrating {
+                pipeline.setSuspended(false)
+                pipeline.start()
+            }
+        } else if on {
             refreshPermissions()
             switch cameraPermission {
             case .granted:
@@ -183,7 +203,7 @@ final class AppModel {
     func retainPreview(_ client: String) {
         let wasEmpty = previewClients.isEmpty
         previewClients.insert(client)
-        guard wasEmpty, !isEnabled, !isCalibrating, cameraPermission == .granted else { return }
+        guard wasEmpty, !isEnabled, !isCalibrating, !settings.input.usesCamera || cameraPermission == .granted else { return }
         pipeline.setSuspended(true)
         pipeline.start()
     }
@@ -198,8 +218,17 @@ final class AppModel {
     private var isPreviewing: Bool { !previewClients.isEmpty }
 
     var debugClients: String {
-        String(format: "fps=%.0f ms=%.1f detect/s=%.1f face=%@ ax=%@ ", live.fps, live.processingMs, live.detectionsPerSecond,
-               live.status.faceVisible ? "yes" : "no", Permissions.accessibility.isGranted ? "yes" : "no") + "frames=\(frameClients.sorted()) previews=\(previewClients.sorted())"
+        var line = String(format: "input=%@ fps=%.0f ms=%.2f detect/s=%.1f face=%@ ax=%@ ", settings.input.rawValue, live.fps, live.processingMs,
+                          live.detectionsPerSecond, live.status.faceVisible ? "yes" : "no", Permissions.accessibility.isGranted ? "yes" : "no")
+        if !settings.input.usesCamera {
+            let deg = 180 / Double.pi
+            line += String(format: "airpods=%@ motion=%@ ", live.headphonesConnected ? "connected" : "no", Permissions.motion.rawValue)
+            if let h = lastHead {
+                line += String(format: "yaw=%.1f pitch=%.1f roll=%.1f lean=%.1f ", h.yaw * deg, h.pitch * deg, h.roll * deg, live.status.headLean * deg)
+            }
+            if let e = headphoneError { line += "error=\"\(e)\" " }
+        }
+        return line + "frames=\(frameClients.sorted()) previews=\(previewClients.sorted())"
     }
 
     // MARK: - Calibration
@@ -269,6 +298,7 @@ final class AppModel {
         guard !isDemo else { return }
         cameraPermission = Permissions.camera
         accessibilityPermission = Permissions.accessibility
+        motionPermission = Permissions.motion
     }
 
     /// Polls permissions while a screen that shows them is open, because
@@ -341,7 +371,11 @@ final class AppModel {
     private func handle(_ event: PipelineEvent) {
         switch event {
         case let .frame(report):
-            if !frameClients.isEmpty { live.sample = report.sample }
+            if !frameClients.isEmpty {
+                live.sample = report.sample
+                live.head = report.head
+            }
+            lastHead = report.head
             calibrationSink?(report.sample)
             live.status = report.status
             live.fps = report.fps
@@ -357,6 +391,15 @@ final class AppModel {
             live.cameraRunning = running
             if let error { cameraError = error }
             if !running { live.sample = nil }
+            windows?.trackingChanged()
+        case let .headphones(running, connected, error):
+            live.headphonesRunning = running
+            live.headphonesConnected = connected
+            headphoneError = error
+            if !running || !connected {
+                live.head = nil
+                lastHead = nil
+            }
             windows?.trackingChanged()
         }
     }

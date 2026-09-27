@@ -5,6 +5,7 @@ public enum TrackingInput: String, Codable, CaseIterable, Sendable, Identifiable
     case nose
     case eyes
     case hybrid
+    case headphones
 
     public var id: String { rawValue }
 
@@ -13,6 +14,7 @@ public enum TrackingInput: String, Codable, CaseIterable, Sendable, Identifiable
         case .nose: "Nose"
         case .eyes: "Eyes"
         case .hybrid: "Hybrid"
+        case .headphones: "AirPods"
         }
     }
 
@@ -21,11 +23,18 @@ public enum TrackingInput: String, Codable, CaseIterable, Sendable, Identifiable
         case .nose: "Point with your nose. Precise, calm, works in most light."
         case .eyes: "Look where you want to go. Fast but coarse with a webcam."
         case .hybrid: "Eyes jump to the area, your nose places the pointer exactly."
+        case .headphones: "Turn your head with AirPods in. No camera, almost no CPU."
         }
     }
 
     /// Which calibration profile this input relies on.
     public var calibrationInput: TrackingInput { self == .hybrid ? .eyes : self }
+
+    /// AirPods report head motion themselves; everything else needs the camera.
+    public var usesCamera: Bool { self != .headphones }
+
+    /// Inputs a camera calibration exists for.
+    public var isCalibratable: Bool { usesCamera }
 }
 
 /// How nose movement becomes pointer movement.
@@ -168,6 +177,39 @@ public enum FaceGesture: String, Codable, CaseIterable, Sendable, Identifiable, 
     }
 }
 
+/// Head movements Nod recognises from headphone motion sensors.
+public enum HeadGesture: String, Codable, CaseIterable, Sendable, Identifiable, CodingKeyRepresentable {
+    case tiltLeft
+    case tiltRight
+    case nod
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .tiltLeft: "Tilt left"
+        case .tiltRight: "Tilt right"
+        case .nod: "Nod"
+        }
+    }
+
+    public var instruction: String {
+        switch self {
+        case .tiltLeft: "Lean your head towards your left shoulder"
+        case .tiltRight: "Lean your head towards your right shoulder"
+        case .nod: "A quick nod down and back up"
+        }
+    }
+
+    public var symbol: String {
+        switch self {
+        case .tiltLeft: "arrow.counterclockwise"
+        case .tiltRight: "arrow.clockwise"
+        case .nod: "chevron.down.circle"
+        }
+    }
+}
+
 public struct GestureBinding: Codable, Sendable, Equatable {
     public var enabled: Bool
     public var action: PointerAction
@@ -191,6 +233,15 @@ public struct GestureBinding: Codable, Sendable, Equatable {
         case .longBlink: GestureBinding(enabled: true, action: .pauseToggle, holdTime: 0.8)
         case .leftWink: GestureBinding(enabled: false, action: .leftClick, holdTime: 0.25)
         case .rightWink: GestureBinding(enabled: false, action: .rightClick, holdTime: 0.25)
+        }
+    }
+
+    public static func defaults(for gesture: HeadGesture) -> GestureBinding {
+        switch gesture {
+        case .tiltLeft: GestureBinding(enabled: true, action: .leftHold, holdTime: 0.12)
+        case .tiltRight: GestureBinding(enabled: true, action: .rightClick, holdTime: 0.15)
+        // Off by default: glancing down at the keyboard looks a lot like a nod.
+        case .nod: GestureBinding(enabled: false, action: .doubleClick, holdTime: 0)
         }
     }
 }
@@ -311,6 +362,8 @@ public struct NodSettings: Codable, Sendable, Equatable {
     public var hybridJumpDistance: Double = 0.2
 
     public var gestures: [FaceGesture: GestureBinding] = Dictionary(uniqueKeysWithValues: FaceGesture.allCases.map { ($0, GestureBinding.defaults(for: $0)) })
+    /// Clicks for the AirPods input.
+    public var headGestures: [HeadGesture: GestureBinding] = Dictionary(uniqueKeysWithValues: HeadGesture.allCases.map { ($0, GestureBinding.defaults(for: $0)) })
     /// Freeze the pointer while a face gesture forms, so clicks land where aimed.
     public var holdSteadyWhileGesturing: Bool = true
     public var dwell = DwellSettings()
@@ -342,6 +395,10 @@ public struct NodSettings: Codable, Sendable, Equatable {
         gestures[gesture] ?? .defaults(for: gesture)
     }
 
+    public func binding(for gesture: HeadGesture) -> GestureBinding {
+        headGestures[gesture] ?? .defaults(for: gesture)
+    }
+
     /// Decodes leniently: every missing or unreadable key falls back to its
     /// default, so settings survive app updates that add new options.
     public init(from decoder: Decoder) throws {
@@ -359,6 +416,9 @@ public struct NodSettings: Codable, Sendable, Equatable {
         var g = d.gestures
         for (k, v) in c.value(.gestures, default: [FaceGesture: GestureBinding]()) { g[k] = v }
         gestures = g
+        var h = d.headGestures
+        for (k, v) in c.value(.headGestures, default: [HeadGesture: GestureBinding]()) { h[k] = v }
+        headGestures = h
         holdSteadyWhileGesturing = c.value(.holdSteadyWhileGesturing, default: d.holdSteadyWhileGesturing)
         dwell = c.value(.dwell, default: d.dwell)
         showHalo = c.value(.showHalo, default: d.showHalo)

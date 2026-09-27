@@ -11,7 +11,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         switch self {
         case .general: "General"
         case .pointer: "Pointer"
-        case .clicking: "Face Gestures"
+        case .clicking: "Gestures"
         case .dwell: "Dwell Clicking"
         case .calibration: "Calibration"
         case .camera: "Camera"
@@ -53,7 +53,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         switch self {
         case .general: "How Nod starts and gives feedback."
         case .pointer: "What steers the pointer and how it feels."
-        case .clicking: "Click, drag and more with expressions. Meters show live strength, the line marks the trigger point."
+        case .clicking: "Click, drag and more with your face or head. Meters show live strength, the line marks the trigger point."
         case .dwell: "Rest the pointer on something to click it. No gestures needed."
         case .calibration: "Teach Nod your range of movement and your expressions."
         case .camera: "Which camera Nod watches and how hard it works."
@@ -198,16 +198,16 @@ struct PointerPane: View {
         Form {
             Section("Steer with") {
                 ForEach(TrackingInput.allCases) { input in
-                    ChoiceRow(title: input.title, detail: input.summary, symbol: symbol(input),
-                              selected: s.input == input, badge: input == .eyes ? "Experimental" : nil) {
+                    ChoiceRow(title: input.title, detail: input.summary, symbol: input.symbol,
+                              selected: s.input == input, badge: badge(input)) {
                         model.settings.input = input
                     }
                 }
             }
-            if s.input == .nose {
+            if s.input == .nose || s.input == .headphones {
                 Section("Motion") {
                     ForEach(MotionStyle.allCases) { style in
-                        ChoiceRow(title: style.title, detail: style.summary, symbol: motionSymbol(style),
+                        ChoiceRow(title: style.title, detail: summary(style, input: s.input), symbol: motionSymbol(style),
                                   selected: s.motion == style, badge: nil) {
                             model.settings.motion = style
                         }
@@ -223,11 +223,11 @@ struct PointerPane: View {
                     SliderRow(title: "Smoothing", value: $model.settings.smoothing, range: 0...1, format: { "\(Int($0 * 100))%" },
                               help: "More smoothing removes tremor but adds a little lag.")
                 }
-                if s.input != .nose {
+                if s.input == .eyes || s.input == .hybrid {
                     SliderRow(title: "Eye steadiness", value: $model.settings.eyeSmoothing, range: 0...1, format: { "\(Int($0 * 100))%" },
                               help: "Webcam gaze is jittery; steadier means calmer but slower.")
                 }
-                if s.input == .nose, s.motion == .joystick {
+                if s.input == .nose || s.input == .headphones, s.motion == .joystick {
                     SliderRow(title: "Top speed", value: $model.settings.joystickSpeed, range: 0.2...2,
                               format: { String(format: "%.1f", $0) }, help: "Screen widths per second at full tilt.")
                     SliderRow(title: "Dead zone", value: $model.settings.deadzone, range: 0...0.4, format: { "\(Int($0 * 100))%" },
@@ -258,11 +258,20 @@ struct PointerPane: View {
         .formStyle(.grouped)
     }
 
-    private func symbol(_ i: TrackingInput) -> String {
+    private func badge(_ i: TrackingInput) -> String? {
         switch i {
-        case .nose: "nose"
-        case .eyes: "eye"
-        case .hybrid: "sparkles"
+        case .eyes: "Experimental"
+        case .headphones: "No camera"
+        default: nil
+        }
+    }
+
+    private func summary(_ m: MotionStyle, input: TrackingInput) -> String {
+        guard input == .headphones else { return m.summary }
+        switch m {
+        case .relative: return "Moves like a mouse. Small head turns, fine control. Recommended."
+        case .direct: return "Your head aims at a spot on screen. Recentre lines it up, no calibration."
+        case .joystick: return "Turn away from centre to glide. Least neck movement."
         }
     }
 
@@ -281,8 +290,52 @@ struct GesturesPane: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
+        if model.settings.input.usesCamera {
+            faceGestures
+        } else {
+            headGestures
+        }
+    }
+
+    private var headGestures: some View {
         @Bindable var model = model
-        Form {
+        return Form {
+            Section {
+                if !model.isEnabled {
+                    Label("Reading your AirPods so the meters are live. Pointer control stays off.", systemImage: "info.circle")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                if model.live.head == nil {
+                    Label("Put in your AirPods to see the meters move.", systemImage: "airpodspro")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            ForEach(HeadGesture.allCases) { g in
+                Section {
+                    GestureRow(title: g.title, instruction: g.instruction, symbol: g.symbol,
+                               binding: Binding(get: { model.settings.binding(for: g) },
+                                                set: { model.settings.headGestures[g] = $0 }),
+                               activation: model.live.status.headActivations[g] ?? 0,
+                               showsHoldTime: g != .nod)
+                }
+            }
+            Section {
+                Toggle(isOn: $model.settings.holdSteadyWhileGesturing) {
+                    Text("Hold the pointer steady while a tilt forms")
+                    Text("Leaning sideways turns your head a little too. This keeps clicks exactly where you aimed.")
+                }
+            } footer: {
+                Text("A nod clicks where the pointer was before your head went down. It is off at first, because glancing at the keyboard can look like a nod.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+        .liveFrames(model, id: "settings.gestures", preview: true)
+    }
+
+    private var faceGestures: some View {
+        @Bindable var model = model
+        return Form {
             if !model.isEnabled {
                 Section {
                     Label("Showing a camera preview so the meters are live. Pointer control stays off.", systemImage: "info.circle")
@@ -291,10 +344,11 @@ struct GesturesPane: View {
             }
             ForEach(FaceGesture.allCases) { g in
                 Section {
-                    GestureRow(gesture: g,
+                    GestureRow(title: g.title, instruction: g.instruction, symbol: g.symbol,
                                binding: Binding(get: { model.settings.binding(for: g) },
                                                 set: { model.settings.gestures[g] = $0 }),
-                               activation: model.live.status.activations[g] ?? 0)
+                               activation: model.live.status.activations[g] ?? 0,
+                               mirrored: g == .rightWink)
                 }
             }
             Section {
@@ -319,18 +373,22 @@ struct GesturesPane: View {
 }
 
 struct GestureRow: View {
-    let gesture: FaceGesture
+    let title: String
+    let instruction: String
+    let symbol: String
     @Binding var binding: GestureBinding
     let activation: Double
+    var mirrored = false
+    var showsHoldTime = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 12) {
-                IconBadge(symbol: gesture.symbol, colors: binding.enabled ? [Theme.teal, Theme.blue] : [.gray.opacity(0.7), .gray.opacity(0.5)], size: 28)
-                    .scaleEffect(x: gesture == .rightWink ? -1 : 1)
+                IconBadge(symbol: symbol, colors: binding.enabled ? [Theme.teal, Theme.blue] : [.gray.opacity(0.7), .gray.opacity(0.5)], size: 28)
+                    .scaleEffect(x: mirrored ? -1 : 1)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(gesture.title).font(.system(size: 13, weight: .semibold))
-                    Text(gesture.instruction).font(.caption).foregroundStyle(.secondary)
+                    Text(title).font(.system(size: 13, weight: .semibold))
+                    Text(instruction).font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
                 if binding.enabled {
@@ -346,7 +404,9 @@ struct GestureRow: View {
                 }
                 SliderRow(title: "Sensitivity", value: $binding.sensitivity, range: 0...1,
                           format: { $0 < 0.34 ? "Big move" : ($0 < 0.67 ? "Medium" : "Subtle") })
-                SliderRow(title: "Hold for", value: $binding.holdTime, range: 0...1.5, format: { String(format: "%.2f s", $0) })
+                if showsHoldTime {
+                    SliderRow(title: "Hold for", value: $binding.holdTime, range: 0...1.5, format: { String(format: "%.2f s", $0) })
+                }
             }
         }
         .padding(.vertical, 4)
@@ -422,6 +482,9 @@ struct CalibrationPane: View {
                     }
                     Button("Teach") { model.windows?.startCalibration(gesturesOnly: true) }
                 }
+            }
+            Section("AirPods") {
+                Tip(symbol: "airpodspro", text: "AirPods need no calibration. Look at the middle of the screen and press Recentre (\(model.settings.recenterHotKey.display)) whenever the pointer drifts.")
             }
             Section("For the best result") {
                 Tip(symbol: "sun.max", text: "Light your face from the front. A window behind you makes the face dark.")
@@ -688,6 +751,14 @@ struct PermissionsPane: View {
                     Permissions.promptAccessibility()
                     Permissions.openAccessibilitySettings()
                 }
+                if model.settings.input == .headphones || model.motionPermission != .notDetermined {
+                    PermissionRow(symbol: "airpodspro", title: "Headphone motion",
+                                  detail: "Only for the AirPods input. macOS asks the first time Nod reads your head movement.",
+                                  status: model.motionPermission,
+                                  showsButton: model.motionPermission != .notDetermined) {
+                        Permissions.openPrivacySettings()
+                    }
+                }
             }
             Section("Privacy") {
                 Tip(symbol: "wifi.slash", text: "Nod makes no network connections. There is no account, analytics or telemetry.")
@@ -706,6 +777,8 @@ struct PermissionRow: View {
     let title: String
     let detail: String
     let status: PermissionStatus
+    /// Some permissions can only be asked for by macOS itself.
+    var showsButton = true
     let action: () -> Void
 
     var body: some View {
@@ -720,8 +793,10 @@ struct PermissionRow: View {
                 Label("Allowed", systemImage: "checkmark.circle.fill")
                     .foregroundStyle(Theme.green)
                     .font(.system(size: 12, weight: .medium))
-            } else {
+            } else if showsButton {
                 Button(status == .notDetermined ? "Allow" : "Open Settings", action: action)
+            } else {
+                Text("Not asked yet").font(.caption).foregroundStyle(.secondary)
             }
         }
     }

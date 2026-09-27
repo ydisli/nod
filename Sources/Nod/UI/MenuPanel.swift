@@ -9,7 +9,11 @@ struct MenuPanel: View {
         @Bindable var model = model
         VStack(alignment: .leading, spacing: 12) {
             header
-            FaceCard(height: 176)
+            if model.settings.input.usesCamera {
+                FaceCard(height: 176)
+            } else {
+                HeadCard(height: 176)
+            }
             banners
             InputPicker(selection: $model.settings.input)
             sliders
@@ -54,21 +58,29 @@ struct MenuPanel: View {
             let key = model.settings.toggleHotKey
             return key.isEnabled ? "Off. Press \(key.display) to start" : "Off"
         }
-        if model.cameraError != nil { return "Camera problem" }
-        if !model.live.cameraRunning { return "Starting camera…" }
+        let camera = model.settings.input.usesCamera
+        if camera {
+            if model.cameraError != nil { return "Camera problem" }
+            if !model.live.cameraRunning { return "Starting camera…" }
+        } else if model.headphoneError != nil {
+            return "AirPods problem"
+        }
         if s.paused { return "Paused" }
         if s.scrolling { return "Scroll mode" }
         if s.dragging { return "Dragging" }
-        if !s.faceVisible { return "Looking for your face…" }
+        if !s.faceVisible { return camera ? "Looking for your face…" : "Waiting for your AirPods…" }
         switch model.settings.input {
         case .nose: return "Following your nose"
         case .eyes: return "Following your eyes"
         case .hybrid: return "Following eyes and nose"
+        case .headphones: return "Following your head"
         }
     }
 
     @ViewBuilder private var banners: some View {
-        if model.cameraPermission == .denied {
+        if !model.settings.input.usesCamera {
+            headphoneBanners
+        } else if model.cameraPermission == .denied {
             Callout(symbol: "camera.fill", color: Theme.ember, title: "Camera access is off",
                     detail: "Nod needs the camera to see your face.", button: "Open Settings") {
                 Permissions.openCameraSettings()
@@ -90,6 +102,26 @@ struct MenuPanel: View {
                     detail: "Takes about 20 seconds.", button: "Calibrate") {
                 model.windows?.startCalibration()
             }
+        }
+    }
+
+    @ViewBuilder private var headphoneBanners: some View {
+        if let error = model.headphoneError, model.isEnabled {
+            Callout(symbol: "exclamationmark.triangle.fill", color: Theme.ember, title: "AirPods problem",
+                    detail: error, button: "Retry") {
+                model.setEnabled(false)
+                model.setEnabled(true)
+            }
+        } else if model.isEnabled, model.accessibilityPermission != .granted {
+            Callout(symbol: "hand.raised.fill", color: Theme.gold, title: "Allow Nod to move the pointer",
+                    detail: "Turn on Nod in Accessibility. Already on? Remove it with −, then Allow again.", button: "Allow") {
+                Permissions.promptAccessibility()
+                Permissions.openAccessibilitySettings()
+            }
+        } else if model.isEnabled, model.live.headphonesRunning, !model.live.status.faceVisible {
+            Callout(symbol: "airpodspro", color: Theme.blue, title: "Put in your AirPods",
+                    detail: "Any AirPods with head tracking for spatial audio, such as AirPods Pro or AirPods Max.",
+                    button: nil) {}
         }
     }
 
@@ -155,6 +187,8 @@ struct MenuPanel: View {
                 VStack(spacing: 3) { Image(systemName: "target").frame(height: 16); Text("Calibrate") }
             }
             .buttonStyle(TileButtonStyle())
+            .disabled(!model.settings.input.isCalibratable)
+            .help(model.settings.input.isCalibratable ? "Calibrate the current input" : "AirPods need no calibration. Use Recentre.")
 
             Button { model.windows?.togglePalette() } label: {
                 VStack(spacing: 3) { Image(systemName: "square.grid.2x2").frame(height: 16); Text("Palette") }
@@ -181,7 +215,7 @@ struct MenuPanel: View {
             }
             .keyboardShortcut(",", modifiers: .command)
             Spacer()
-            Text(model.isEnabled && model.live.cameraRunning ? String(format: "%.0f fps · %.1f ms", model.live.fps, model.live.processingMs) : "")
+            Text(rateText)
                 .font(.system(size: 10).monospacedDigit())
                 .foregroundStyle(.tertiary)
             Spacer()
@@ -190,6 +224,15 @@ struct MenuPanel: View {
         }
         .buttonStyle(.borderless)
         .font(.system(size: 12))
+    }
+}
+
+extension MenuPanel {
+    private var rateText: String {
+        guard model.isEnabled else { return "" }
+        if model.live.cameraRunning { return String(format: "%.0f fps · %.1f ms", model.live.fps, model.live.processingMs) }
+        if model.live.headphonesRunning, model.live.fps > 0 { return String(format: "%.0f Hz · %.2f ms", model.live.fps, model.live.processingMs) }
+        return ""
     }
 }
 
@@ -215,7 +258,9 @@ struct FaceCard: View {
                 }
                 Spacer()
                 if model.isEnabled {
-                    GestureStrip(activations: model.live.status.activations, bindings: model.settings.gestures)
+                    GestureStrip(items: FaceGesture.allCases.filter { model.settings.binding(for: $0).enabled }.map {
+                        GestureStrip.Item(id: $0.rawValue, symbol: $0.symbol, title: $0.title, activation: model.live.status.activations[$0] ?? 0)
+                    })
                 } else {
                     Text("Nod is off. Switch it on to see yourself tracked.")
                         .font(.system(size: 11))
@@ -237,24 +282,124 @@ struct FaceCard: View {
     }
 }
 
-/// Mini meters for each enabled gesture.
-struct GestureStrip: View {
-    let activations: [FaceGesture: Double]
-    let bindings: [FaceGesture: GestureBinding]
+/// AirPods on a dark card: a dial that shows recent head movement and a
+/// horizon that leans with your head, with tilt meters along the bottom.
+struct HeadCard: View {
+    @Environment(AppModel.self) private var model
+    var height: CGFloat
 
     var body: some View {
-        let enabled = FaceGesture.allCases.filter { bindings[$0]?.enabled == true }
+        let live = model.live
+        let tracking = model.isEnabled && live.status.faceVisible && live.head != nil
+        InkCard {
+            if tracking {
+                HeadDial(offset: live.status.headOffset, lean: live.status.headLean,
+                         leaning: max(live.status.headActivations[.tiltLeft] ?? 0, live.status.headActivations[.tiltRight] ?? 0))
+                    .padding(.vertical, 26)
+            } else {
+                VStack(spacing: 8) {
+                    Image(systemName: "airpodspro")
+                        .font(.system(size: 40, weight: .light))
+                        .foregroundStyle(.white.opacity(0.35))
+                    Text(model.isEnabled ? "Put in your AirPods and look at the screen." : "Nod is off. Switch it on to steer with your AirPods.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.white.opacity(0.6))
+                }
+            }
+            VStack {
+                HStack {
+                    pill
+                    Spacer()
+                    if live.status.frozen && model.isEnabled {
+                        Image(systemName: "lock.fill")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(Theme.gold)
+                            .help("Pointer held steady while a tilt forms")
+                    }
+                }
+                Spacer()
+                if tracking {
+                    GestureStrip(items: HeadGesture.allCases.filter { model.settings.binding(for: $0).enabled }.map {
+                        GestureStrip.Item(id: $0.rawValue, symbol: $0.symbol, title: $0.title, activation: live.status.headActivations[$0] ?? 0)
+                    })
+                }
+            }
+            .padding(10)
+        }
+        .frame(height: height)
+    }
+
+    private var pill: some View {
+        let s = model.live.status
+        if !model.isEnabled { return StatusPill(text: "Off", color: .gray) }
+        if model.headphoneError != nil { return StatusPill(text: "Problem", color: Theme.ember) }
+        if s.paused { return StatusPill(text: "Paused", color: Theme.gold) }
+        if s.faceVisible { return StatusPill(text: "AirPods", color: Theme.teal, pulsing: true) }
+        return StatusPill(text: "No AirPods", color: Theme.gold)
+    }
+}
+
+/// A round dial: the dot is where the head has just moved, the line is the
+/// head's sideways lean (it turns gold as a tilt gets close to clicking).
+struct HeadDial: View {
+    let offset: Vec2
+    let lean: Double
+    let leaning: Double
+
+    var body: some View {
+        GeometryReader { geo in
+            let r = min(geo.size.width, geo.size.height) / 2
+            let c = CGPoint(x: geo.size.width / 2, y: geo.size.height / 2)
+            ZStack {
+                Circle().stroke(.white.opacity(0.14), lineWidth: 1)
+                    .frame(width: r * 2, height: r * 2)
+                Circle().stroke(.white.opacity(0.07), lineWidth: 1)
+                    .frame(width: r, height: r)
+                Path { p in
+                    p.move(to: CGPoint(x: c.x - r, y: c.y)); p.addLine(to: CGPoint(x: c.x + r, y: c.y))
+                    p.move(to: CGPoint(x: c.x, y: c.y - r)); p.addLine(to: CGPoint(x: c.x, y: c.y + r))
+                }
+                .stroke(.white.opacity(0.06), lineWidth: 1)
+                Capsule()
+                    .fill(leaning >= 1 ? Theme.gold : Theme.blue.opacity(0.35 + 0.5 * min(leaning, 1)))
+                    .frame(width: r * 1.7, height: 2.5)
+                    .rotationEffect(.radians(lean))
+                    .position(c)
+                Circle()
+                    .fill(Theme.teal)
+                    .frame(width: 12, height: 12)
+                    .shadow(color: Theme.teal.opacity(0.8), radius: 6)
+                    .position(x: c.x + offset.x * r * 0.9, y: c.y + offset.y * r * 0.9)
+            }
+            .animation(.linear(duration: 0.06), value: offset)
+            .animation(.linear(duration: 0.06), value: lean)
+        }
+    }
+}
+
+/// Mini meters for each enabled gesture.
+struct GestureStrip: View {
+    struct Item: Identifiable {
+        let id: String
+        let symbol: String
+        let title: String
+        let activation: Double
+    }
+
+    let items: [Item]
+
+    var body: some View {
         HStack(spacing: 10) {
-            ForEach(enabled) { g in
+            ForEach(items) { item in
                 HStack(spacing: 5) {
-                    Image(systemName: g.symbol)
+                    Image(systemName: item.symbol)
                         .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle((activations[g] ?? 0) >= 1 ? Theme.gold : .white.opacity(0.75))
+                        .foregroundStyle(item.activation >= 1 ? Theme.gold : .white.opacity(0.75))
                         .frame(width: 14)
-                    ActivationMeter(value: activations[g] ?? 0, height: 4)
+                    ActivationMeter(value: item.activation, height: 4)
                         .frame(width: 38)
                 }
-                .help(g.title)
+                .help(item.title)
             }
         }
         .padding(.horizontal, 8)
@@ -263,7 +408,7 @@ struct GestureStrip: View {
     }
 }
 
-/// Nose, Eyes or Hybrid as three tiles.
+/// Nose, Eyes, Hybrid or AirPods as tiles.
 struct InputPicker: View {
     @Binding var selection: TrackingInput
 
@@ -273,22 +418,14 @@ struct InputPicker: View {
                 Button {
                     selection = input
                 } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: symbol(input))
+                    HStack(spacing: 4) {
+                        Image(systemName: input.symbol)
                         Text(input.title)
                     }
                 }
                 .buttonStyle(TileButtonStyle(active: selection == input))
                 .help(input.summary)
             }
-        }
-    }
-
-    private func symbol(_ i: TrackingInput) -> String {
-        switch i {
-        case .nose: "nose"
-        case .eyes: "eye"
-        case .hybrid: "sparkles"
         }
     }
 }
@@ -299,7 +436,7 @@ struct Callout: View {
     let color: Color
     let title: String
     let detail: String
-    let button: String
+    let button: String?
     let action: () -> Void
 
     var body: some View {
@@ -313,8 +450,10 @@ struct Callout: View {
                 Text(detail).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(2)
             }
             Spacer(minLength: 4)
-            Button(button, action: action)
-                .controlSize(.small)
+            if let button {
+                Button(button, action: action)
+                    .controlSize(.small)
+            }
         }
         .padding(10)
         .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(color.opacity(0.12)))

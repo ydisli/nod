@@ -28,6 +28,8 @@
 	<string>14.0</string>
 	<key>LSUIElement</key>
 	<true/>
+	<key>NSMotionUsageDescription</key>
+	<string>Nod reads the head movement your AirPods measure to move the pointer. Nothing is recorded or sent.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Nod watches your face to move the pointer and recognise gestures. Video is processed on this Mac only and is never recorded, stored or sent anywhere.</string>
 	<key>NSHighResolutionCapable</key>
