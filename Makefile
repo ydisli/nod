@@ -15,9 +15,13 @@ icon:           ## Re-render Support/AppIcon.icns from the NodMark view
 	.build/debug/Nod --render-icon build/Nod.iconset
 	iconutil -c icns build/Nod.iconset -o Support/AppIcon.icns
 
-dmg: app        ## Package build/Nod.dmg
-	rm -f build/Nod.dmg
-	hdiutil create -volname Nod -srcfolder build/Nod.app -ov -format UDZO build/Nod.dmg
+dmg: app        ## Package build/Nod.dmg, with an Applications shortcut to drag onto
+	rm -rf build/dmg build/Nod.dmg
+	mkdir -p build/dmg
+	cp -R build/Nod.app build/dmg/
+	ln -s /Applications build/dmg/Applications
+	hdiutil create -volname Nod -srcfolder build/dmg -ov -format UDZO build/Nod.dmg
+	rm -rf build/dmg
 
 install: app    ## Copy to /Applications
 	rm -rf /Applications/Nod.app

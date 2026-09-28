@@ -6,6 +6,9 @@
 <p align="center"><b>Your head is the mouse.</b><br>
 Hands-free pointer control for macOS, through the AirPods you already wear.</p>
 
+<p align="center"><a href="https://github.com/ydisli/nod/releases/latest"><b>Download Nod</b></a>
+· free · macOS 14 or later · Apple silicon · AirPods with head tracking</p>
+
 <p align="center">
   <img src="docs/screens/onboarding-0.jpg" width="720" alt="Nod's welcome screen">
 </p>
@@ -89,23 +92,52 @@ and the screen hears about live data only while a window shows it, at most ten t
 
 ## Install
 
-Nod needs macOS 14 Sonoma or later and AirPods with head tracking. Build it from source (a signed
-download will follow):
+No Terminal, no developer tools. Nod is one app you download.
 
-```bash
-git clone https://github.com/ydisli/nod.git
-cd nod
-make app
-open build/Nod.app
-```
+**What you need**
 
-You need the Xcode command line tools with Swift 6 (`xcode-select --install`). `make install`
-copies the app to `/Applications`.
+- A Mac with Apple silicon (M1 or newer), running macOS 14 Sonoma or later. Apple offers AirPods
+  head tracking on Macs with Apple silicon.
+- AirPods with head tracking: AirPods 3, AirPods 4, any AirPods Pro, or AirPods Max
+  ([Apple's list](https://support.apple.com/guide/airpods/control-spatial-audio-and-head-tracking-dev00eb7e0a3/web)).
 
-Nod asks for two permissions:
+**Steps**
 
-- **Accessibility**, to move the pointer and click. macOS silently ignores the events without it.
-- **Headphone motion**, which macOS asks for the first time Nod reads your AirPods.
+1. Download **Nod.dmg** from the [latest release](https://github.com/ydisli/nod/releases/latest).
+2. Open the downloaded file and drag **Nod** onto the **Applications** folder next to it.
+3. Open Nod from your Applications folder. macOS says it cannot verify the app, because Nod is not
+   yet signed with a paid Apple developer certificate. Click **Done**. This happens only once.
+4. Open the Apple menu, choose **System Settings**, then **Privacy & Security**. Scroll down to
+   **Security**, where it mentions Nod, and click **Open Anyway**. Enter your Mac password. (The
+   button stays there for about an hour after step 3.
+   [Apple explains this here](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac).)
+5. Nod opens with a short welcome tour, and an AirPods icon appears in the menu bar at the top of
+   your screen.
+6. **Allow Accessibility.** The tour has a button for it. In the list that opens, switch Nod on.
+   This is what lets Nod move the pointer and click.
+7. **Put in your AirPods.** The first time, macOS asks whether Nod may use motion data. Click
+   **Allow**.
+8. Press **⌃⌥N** (Control, Option and N together) to start. Look at the middle of the screen and
+   press **⌃⌥C** to centre the pointer. Turn your head, and it follows.
+
+Settings has a **Help** page, and the **?** in the menu bar panel opens it.
+
+**Updating.** Download the new Nod.dmg and drag Nod to Applications again, replacing the old one.
+Your settings and permissions stay.
+
+**Removing Nod.** Quit it from its menu bar panel, then drag Nod from Applications to the Bin (Trash). To
+tidy up, remove it from System Settings, Privacy & Security, Accessibility.
+
+**If something is off**
+
+- *Nothing moves.* Open the menu bar panel. It says what is missing: Accessibility, or your
+  AirPods. Check that they are in your ears and connected to this Mac.
+- *Accessibility is on, but Nod still asks for it.* Select Nod in the Accessibility list, remove
+  it with **−**, then allow it again.
+- *The pointer drifts from where you look.* Look at the middle of the screen and press ⌃⌥C.
+  **Direct** motion (in the panel) keeps the two lined up best.
+- *It moves the wrong way.* Settings, Pointer, Reverse left and right, or up and down.
+- *You want your mouse back.* Just move it; Nod steps aside. ⌃⌥N switches Nod off completely.
 
 ## Using it
 
@@ -138,6 +170,27 @@ Tests/NodCoreTests  Swift Testing suite
 Support             Info.plist, icon
 scripts             build and developer tools
 ```
+
+## Build from source
+
+For developers. Nod has no third-party dependencies; it uses only Apple's frameworks. You need
+Apple's command line tools with Swift 6.
+
+1. Open **Terminal** (Applications, Utilities).
+2. Install the tools, if you do not have them: run `xcode-select --install` and click **Install**
+   in the window that appears. If you already have them, check `swift --version` says 6 or newer;
+   Software Update installs newer tools.
+3. Get the code and build the app:
+
+```bash
+git clone https://github.com/ydisli/nod.git
+cd nod
+make app          # builds build/Nod.app
+make install      # copies it to /Applications
+```
+
+`make dmg` makes the same Nod.dmg as the releases. A build you make yourself opens without the
+security warning, because your Mac made it.
 
 ## Development
 
