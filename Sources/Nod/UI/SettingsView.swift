@@ -303,7 +303,7 @@ struct ClickKeysSection: View {
         } header: {
             Text("Keys")
         } footer: {
-            Text("Click a key box, then press any key or shortcut, or tap a key on the right side such as right ⌘. A right-side key counts only when pressed on its own, so shortcuts keep working. Delete clears. Nod never records what you type.")
+            Text("Click a key box, then press any key or shortcut, or tap a modifier key such as right ⌘ or left ⌥. A modifier key counts only when pressed on its own, so shortcuts keep working. Delete clears. Nod never records what you type.")
                 .font(.caption).foregroundStyle(.secondary)
         }
     }
@@ -333,7 +333,7 @@ struct ClickKeysSection: View {
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
             .fixedSize()
-            .help("Pick a right-side key")
+            .help("Pick a modifier key")
         }
     }
 
@@ -355,7 +355,7 @@ struct ClickKeysSection: View {
 }
 
 /// Records a click trigger: any key or shortcut, or a lone tap of a
-/// right-hand modifier key.
+/// modifier key.
 struct ClickTriggerRecorder: View {
     @Binding var trigger: ClickTrigger
     var isTaken: (HotKeySpec) -> Bool = { _ in false }
@@ -385,7 +385,7 @@ struct ClickTriggerRecorder: View {
         HotKeyCenter.shared.isSuspended = true
         monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged]) { event in
             if event.type == .flagsChanged {
-                // A right-hand modifier pressed and let go on its own.
+                // A modifier key pressed and let go on its own.
                 if let key = ClickKey(keyCode: event.keyCode) {
                     let down = UInt64(event.modifierFlags.rawValue) & key.deviceMask != 0
                     if down {

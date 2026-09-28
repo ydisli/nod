@@ -1,7 +1,7 @@
 import AppKit
 import NodCore
 
-/// Watches the right-hand modifier keys for click taps and holds.
+/// Watches the modifier keys for click taps and holds.
 ///
 /// Other key presses are noticed only as "some other key", so a click key
 /// used in a shortcut does not click. Nothing typed is read or kept. Global
@@ -22,7 +22,9 @@ final class KeyClickMonitor {
 
     func start() {
         guard monitors.isEmpty else { return }
-        let mask: NSEvent.EventTypeMask = [.flagsChanged, .keyDown]
+        // Mouse and trackpad clicks count as "another key": ⌘-clicking a link
+        // and then letting go of ⌘ must not click again.
+        let mask: NSEvent.EventTypeMask = [.flagsChanged, .keyDown, .leftMouseDown, .rightMouseDown, .otherMouseDown]
         if let m = NSEvent.addGlobalMonitorForEvents(matching: mask, handler: { [weak self] e in
             MainActor.assumeIsolated { self?.handle(e) }
         }) {
@@ -50,7 +52,7 @@ final class KeyClickMonitor {
             return
         }
         guard let key = ClickKey(keyCode: e.keyCode) else {
-            // A left-hand modifier, fn or Caps Lock: part of a shortcut.
+            // fn or Caps Lock: part of a shortcut.
             onEvent(.otherKey)
             return
         }
@@ -79,10 +81,10 @@ extension ClickKey {
         let device = CGEventFlags(rawValue: deviceMask)
         switch self {
         case .off: return []
-        case .rightCommand: return [.maskCommand, device]
-        case .rightOption: return [.maskAlternate, device]
-        case .rightShift: return [.maskShift, device]
-        case .rightControl: return [.maskControl, device]
+        case .rightCommand, .leftCommand: return [.maskCommand, device]
+        case .rightOption, .leftOption: return [.maskAlternate, device]
+        case .rightShift, .leftShift: return [.maskShift, device]
+        case .rightControl, .leftControl: return [.maskControl, device]
         }
     }
 }

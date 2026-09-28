@@ -225,7 +225,7 @@ public struct NodSettings: Codable, Sendable, Equatable {
     public var headGestures: [HeadGesture: GestureBinding] = Dictionary(uniqueKeysWithValues: HeadGesture.allCases.map { ($0, GestureBinding.defaults(for: $0)) })
     /// Freeze the pointer while a tilt forms, so clicks land where aimed.
     public var holdSteadyWhileGesturing: Bool = true
-    /// Click with the right-hand modifier keys while the head steers.
+    /// Click with keys while the head steers.
     public var clickKeys = ClickKeys()
     public var dwell = DwellSettings()
 

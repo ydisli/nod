@@ -38,10 +38,11 @@ disability, an injury or RSI, and for anyone who wants their hands free.
 | Nod | Off at first (double click), since glancing at the keyboard looks similar |
 | Rest on a spot | Dwell click, with a palette for right click, double click, drag and scroll |
 
-A key press never moves your head, so key clicks land exactly where you aimed. Only the keys on
-the right side count, and only when pressed on their own, so shortcuts keep working. Nod never
-records what you type. Each click can also take any shortcut you record, such as F5 or ⌃⌥Space;
-those are taken system wide only while Nod is on. Settings has a Help page.
+A key press never moves your head, so key clicks land exactly where you aimed. Any modifier key
+on either side can click (⌘ ⌥ ⌃ ⇧, left or right; the right-hand ones are the default). It counts
+only when tapped on its own, so shortcuts and ⌘-clicks keep working. Nod never records what you
+type. Each click can also take any shortcut you record, such as F5 or ⌃⌥Space; those are taken
+system wide only while Nod is on. Settings has a Help page.
 
 Leaning does not steer the pointer, so a lean can be held while you turn. While a lean forms, the
 pointer holds still so the click lands where you aimed, and a nod clicks where the pointer was

@@ -1,13 +1,19 @@
 import Foundation
 
-/// A right-hand modifier key used on its own. Pressed alone it does nothing
-/// in other apps, and the left-hand ones stay free for shortcuts.
+/// A modifier key used on its own. Tapped alone it does nothing in other
+/// apps. The right-hand ones are the default because the left-hand ones are
+/// busy with shortcuts, but either side works: a key pressed together with
+/// another key never clicks.
 public enum ClickKey: String, Codable, CaseIterable, Sendable, Identifiable {
     case off
     case rightCommand
     case rightOption
     case rightShift
     case rightControl
+    case leftCommand
+    case leftOption
+    case leftShift
+    case leftControl
 
     public var id: String { rawValue }
 
@@ -18,6 +24,10 @@ public enum ClickKey: String, Codable, CaseIterable, Sendable, Identifiable {
         case .rightOption: "Right ⌥ Option"
         case .rightShift: "Right ⇧ Shift"
         case .rightControl: "Right ⌃ Control"
+        case .leftCommand: "Left ⌘ Command"
+        case .leftOption: "Left ⌥ Option"
+        case .leftShift: "Left ⇧ Shift"
+        case .leftControl: "Left ⌃ Control"
         }
     }
 
@@ -28,10 +38,14 @@ public enum ClickKey: String, Codable, CaseIterable, Sendable, Identifiable {
         case .rightOption: "right ⌥"
         case .rightShift: "right ⇧"
         case .rightControl: "right ⌃"
+        case .leftCommand: "left ⌘"
+        case .leftOption: "left ⌥"
+        case .leftShift: "left ⇧"
+        case .leftControl: "left ⌃"
         }
     }
 
-    /// macOS virtual key code (kVK_RightCommand and friends).
+    /// macOS virtual key code (kVK_RightCommand, kVK_Command and friends).
     public var keyCode: UInt16? {
         switch self {
         case .off: nil
@@ -39,6 +53,10 @@ public enum ClickKey: String, Codable, CaseIterable, Sendable, Identifiable {
         case .rightOption: 0x3D
         case .rightShift: 0x3C
         case .rightControl: 0x3E
+        case .leftCommand: 0x37
+        case .leftOption: 0x3A
+        case .leftShift: 0x38
+        case .leftControl: 0x3B
         }
     }
 
@@ -51,6 +69,10 @@ public enum ClickKey: String, Codable, CaseIterable, Sendable, Identifiable {
         case .rightOption: 0x40
         case .rightShift: 0x04
         case .rightControl: 0x2000
+        case .leftCommand: 0x08
+        case .leftOption: 0x20
+        case .leftShift: 0x02
+        case .leftControl: 0x01
         }
     }
 
@@ -60,7 +82,7 @@ public enum ClickKey: String, Codable, CaseIterable, Sendable, Identifiable {
     }
 }
 
-/// What makes a click: nothing, a lone right-hand modifier, or any shortcut
+/// What makes a click: nothing, a lone modifier key, or any shortcut
 /// you record (a key on its own, or with ⌘ ⌥ ⌃ ⇧).
 ///
 /// Stored as a plain string for the first two ("off", "rightCommand"), so
@@ -161,7 +183,7 @@ public enum KeyClickOutput: Equatable, Sendable {
 
 /// Tells a tap or a hold of a click key from a shortcut.
 ///
-/// A tap counts on release. For a lone right-hand modifier, pressing any
+/// A tap counts on release. For a lone modifier key, pressing any
 /// other key meanwhile turns it into a shortcut, so it never clicks. A
 /// recorded shortcut is deliberate, so other keys do not cancel it. Holding
 /// the left button key for `holdDelay` presses the button until the key
@@ -203,6 +225,12 @@ public struct KeyClickDetector: Sendable {
             if var h = held {
                 // Key repeat of the same key: nothing new.
                 if h.trigger == t { return [] }
+                // A modifier held on its way into a recorded shortcut (⌃ then
+                // ⌃⌥Space): the shortcut is what was meant.
+                if case .shortcut = t, h.canBeSpoiled, !h.pressed, keys.isBound(t) {
+                    held = Held(trigger: t, since: time)
+                    return []
+                }
                 // Two click keys at once is a chord, not a click.
                 if !h.pressed { h.spoiled = true }
                 held = h

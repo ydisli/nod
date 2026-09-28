@@ -53,6 +53,36 @@ struct KeyClickTests {
         #expect(d.handle(.up(.modifier(.rightCommand)), time: 3.1, keys: k).isEmpty)
     }
 
+    @Test func leftHandKeysWorkToo() throws {
+        var k = keys
+        k.leftButton = .modifier(.leftCommand)
+        var d = KeyClickDetector()
+        _ = d.handle(.down(.modifier(.leftCommand)), time: 0, keys: k)
+        #expect(d.handle(.up(.modifier(.leftCommand)), time: 0.1, keys: k) == [.tap])
+        // ⌘C with the left ⌘ is a shortcut, not a click.
+        _ = d.handle(.down(.modifier(.leftCommand)), time: 1, keys: k)
+        _ = d.handle(.otherKey, time: 1.05, keys: k)
+        #expect(d.handle(.up(.modifier(.leftCommand)), time: 1.1, keys: k).isEmpty)
+        let back = try JSONDecoder().decode(ClickKeys.self, from: JSONEncoder().encode(k))
+        #expect(back.leftButton == .modifier(.leftCommand))
+        #expect(ClickKey(keyCode: 0x37) == .leftCommand)
+    }
+
+    @Test func modifierOnItsWayIntoAShortcutGivesWay() {
+        // Left ⌃ clicks, and ⌃⌥Space right clicks: pressing ⌃ first must not
+        // swallow the shortcut.
+        var k = keys
+        let spec = HotKeySpec(keyCode: 0x31, carbonModifiers: HotKeySpec.controlKey | HotKeySpec.optionKey, display: "⌃⌥Space")
+        k.leftButton = .modifier(.leftControl)
+        k.rightClick = .shortcut(spec)
+        var d = KeyClickDetector()
+        _ = d.handle(.down(.modifier(.leftControl)), time: 0, keys: k)
+        _ = d.handle(.down(.modifier(.leftOption)), time: 0.02, keys: k)
+        _ = d.handle(.down(.shortcut(spec)), time: 0.05, keys: k)
+        #expect(d.handle(.up(.shortcut(spec)), time: 0.1, keys: k) == [.rightClick])
+        #expect(d.handle(.up(.modifier(.leftControl)), time: 0.15, keys: k).isEmpty)
+    }
+
     @Test func longRestingPressIsNotAClick() {
         var d = KeyClickDetector()
         _ = d.handle(.down(.modifier(.rightOption)), time: 0, keys: keys)
