@@ -60,6 +60,8 @@ final class AppModel {
     @ObservationIgnored private let isDemo: Bool
     /// Latest pose regardless of visible views, for diagnostics.
     @ObservationIgnored private var lastHead: HeadPose?
+    /// For diagnostics: presses and releases of recorded click shortcuts.
+    @ObservationIgnored private(set) var shortcutEvents = 0
     @ObservationIgnored private lazy var keyMonitor = KeyClickMonitor { [weak self] event in
         self?.pipeline.key(event)
     }
@@ -117,12 +119,25 @@ final class AppModel {
     func toggleEnabled() { setEnabled(!isEnabled) }
 
     /// Listens for click keys only while tracking is on and keys are wanted.
+    /// Recorded click shortcuts are global hotkeys, registered only then too.
     private func refreshKeyMonitor() {
         guard !isDemo else { return }
-        if isEnabled, settings.clickKeys.enabled {
-            keyMonitor.start()
-        } else {
+        let center = HotKeyCenter.shared
+        center.removeAll(group: "click")
+        guard isEnabled, settings.clickKeys.enabled else {
             keyMonitor.stop()
+            return
+        }
+        keyMonitor.start()
+        for spec in settings.clickKeys.shortcuts {
+            let trigger = ClickTrigger.shortcut(spec)
+            center.register(spec, group: "click", onRelease: { [weak self] in
+                self?.shortcutEvents += 1
+                self?.pipeline.key(.up(trigger))
+            }) { [weak self] in
+                self?.shortcutEvents += 1
+                self?.pipeline.key(.down(trigger))
+            }
         }
     }
 
@@ -185,7 +200,7 @@ final class AppModel {
             line += String(format: "yaw=%.1f pitch=%.1f roll=%.1f ", h.yaw * deg, h.pitch * deg, h.roll * deg)
         }
         if let e = headphoneError { line += "error=\"\(e)\" " }
-        line += "keys=\(keyMonitor.isRunning ? "on" : "off") keyEvents=\(keyMonitor.seen) "
+        line += "keys=\(keyMonitor.isRunning ? "on" : "off") keyEvents=\(keyMonitor.seen) shortcutEvents=\(shortcutEvents) "
         return line + "frames=\(frameClients.sorted()) previews=\(previewClients.sorted())"
     }
 
@@ -252,7 +267,7 @@ final class AppModel {
 
     func registerHotKeys() {
         let center = HotKeyCenter.shared
-        center.removeAll()
+        center.removeAll(group: "app")
         center.register(settings.toggleHotKey) { [weak self] in self?.toggleEnabled() }
         center.register(settings.recenterHotKey) { [weak self] in self?.recenter() }
     }

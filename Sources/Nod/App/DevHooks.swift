@@ -46,6 +46,7 @@ enum DevHooks {
             }
         case "pause": model.perform(.pauseToggle)
         case "keytest": postRightCommandTap()
+        case "shortcuttest": testShortcut(model: model)
         case "quit": NSApp.terminate(nil)
         default: print("Unknown dev command: \(command)")
         }
@@ -61,6 +62,24 @@ enum DevHooks {
             e.flags = down ? ClickKey.rightCommand.eventFlags : []
             e.post(tap: .cghidEventTap)
             if down { usleep(80_000) }
+        }
+    }
+
+    /// Binds F13 to double click for a moment and presses it, to check that
+    /// recorded click shortcuts arrive with both press and release. Pause
+    /// first, or it double clicks. The previous binding comes back after.
+    private static func testShortcut(model: AppModel) {
+        let before = model.settings.clickKeys.doubleClick
+        model.settings.clickKeys.doubleClick = .shortcut(HotKeySpec(keyCode: 0x69, carbonModifiers: 0, display: "F13"))
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            let source = CGEventSource(stateID: .hidSystemState)
+            for down in [true, false] {
+                CGEvent(keyboardEventSource: source, virtualKey: 0x69, keyDown: down)?.post(tap: .cghidEventTap)
+                if down { usleep(80_000) }
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                MainActor.assumeIsolated { model.settings.clickKeys.doubleClick = before }
+            }
         }
     }
 

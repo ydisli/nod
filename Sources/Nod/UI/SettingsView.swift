@@ -291,35 +291,132 @@ struct ClickKeysSection: View {
                 Text("A key press does not move your head, so the click lands exactly where you aimed.")
             }
             if model.settings.clickKeys.enabled {
-                keyPicker("Click", detail: "Tap twice to double click, hold to drag.", \.leftButton)
-                keyPicker("Right click", detail: nil, \.rightClick)
-                keyPicker("Double click", detail: "Optional, tapping the click key twice also works.", \.doubleClick)
+                row("Click", detail: "Tap twice to double click, hold to drag.", \.leftButton)
+                row("Right click", detail: nil, \.rightClick)
+                row("Double click", detail: "Optional, tapping the click key twice also works.", \.doubleClick)
             }
         } header: {
             Text("Keys")
         } footer: {
-            Text("Only the keys on the right side, and only when pressed on their own, so shortcuts keep working. Nod never records what you type.")
+            Text("Click a key box, then press any key or shortcut, or tap a key on the right side such as right ⌘. A right-side key counts only when pressed on its own, so shortcuts keep working. Delete clears. Nod never records what you type.")
                 .font(.caption).foregroundStyle(.secondary)
         }
     }
 
-    private func keyPicker(_ title: String, detail: String?, _ path: WritableKeyPath<ClickKeys, ClickKey>) -> some View {
-        Picker(selection: Binding(get: { model.settings.clickKeys[keyPath: path] }, set: { new in
-            var keys = model.settings.clickKeys
-            // One key, one job: whoever had this key gives it up.
-            for other in [\ClickKeys.leftButton, \.rightClick, \.doubleClick] where other != path && keys[keyPath: other] == new && new != .off {
-                keys[keyPath: other] = .off
+    private func row(_ title: String, detail: String?, _ path: WritableKeyPath<ClickKeys, ClickTrigger>) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                if case let .shortcut(spec) = model.settings.clickKeys[keyPath: path], spec.carbonModifiers == 0, spec.display.count == 1 {
+                    Text("Typing \(spec.display) anywhere clicks while Nod is on.").font(.caption).foregroundStyle(Theme.gold)
+                } else if let detail {
+                    Text(detail).font(.caption).foregroundStyle(.secondary)
+                }
             }
-            keys[keyPath: path] = new
-            model.settings.clickKeys = keys
-        })) {
-            ForEach(ClickKey.allCases) { k in
-                Text(k.title).tag(k)
+            Spacer()
+            ClickTriggerRecorder(trigger: Binding(get: { model.settings.clickKeys[keyPath: path] }, set: { set($0, at: path) }),
+                                 isTaken: { taken($0) })
+            Menu {
+                ForEach(ClickKey.allCases.filter { $0 != .off }) { k in
+                    Button(k.title) { set(.modifier(k), at: path) }
+                }
+                Divider()
+                Button("Off") { set(.off, at: path) }
+            } label: {
+                Image(systemName: "chevron.down")
             }
-        } label: {
-            Text(title)
-            if let detail { Text(detail) }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help("Pick a right-side key")
         }
+    }
+
+    /// One key, one job: whoever had this key gives it up.
+    private func set(_ new: ClickTrigger, at path: WritableKeyPath<ClickKeys, ClickTrigger>) {
+        var keys = model.settings.clickKeys
+        for other in [\ClickKeys.leftButton, \.rightClick, \.doubleClick] where other != path && keys[keyPath: other] == new && !new.isOff {
+            keys[keyPath: other] = .off
+        }
+        keys[keyPath: path] = new
+        model.settings.clickKeys = keys
+    }
+
+    /// Nod's own shortcuts cannot also click.
+    private func taken(_ spec: HotKeySpec) -> Bool {
+        let s = model.settings
+        return [s.toggleHotKey, s.recenterHotKey].contains { $0.keyCode == spec.keyCode && $0.carbonModifiers == spec.carbonModifiers }
+    }
+}
+
+/// Records a click trigger: any key or shortcut, or a lone tap of a
+/// right-hand modifier key.
+struct ClickTriggerRecorder: View {
+    @Binding var trigger: ClickTrigger
+    var isTaken: (HotKeySpec) -> Bool = { _ in false }
+    @State private var recording = false
+    @State private var monitor: Any?
+    @State private var pendingModifier: ClickKey?
+
+    var body: some View {
+        Button {
+            recording ? stop() : start()
+        } label: {
+            Text(recording ? "Press a key…" : trigger.title)
+                .font(.system(size: 12, weight: .medium))
+                .frame(minWidth: 130)
+                .padding(.vertical, 4)
+                .padding(.horizontal, 8)
+                .background(RoundedRectangle(cornerRadius: 7).fill(recording ? Theme.teal.opacity(0.25) : .primary.opacity(0.07)))
+                .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(recording ? Theme.teal : .primary.opacity(0.12), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .onDisappear { stop() }
+    }
+
+    private func start() {
+        recording = true
+        pendingModifier = nil
+        HotKeyCenter.shared.isSuspended = true
+        monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged]) { event in
+            if event.type == .flagsChanged {
+                // A right-hand modifier pressed and let go on its own.
+                if let key = ClickKey(keyCode: event.keyCode) {
+                    let down = UInt64(event.modifierFlags.rawValue) & key.deviceMask != 0
+                    if down {
+                        pendingModifier = key
+                    } else if pendingModifier == key {
+                        trigger = .modifier(key)
+                        stop()
+                    }
+                }
+                return nil
+            }
+            pendingModifier = nil
+            switch Int(event.keyCode) {
+            case 53: // Escape
+                stop()
+            case 51, 117: // Delete, Forward delete
+                trigger = .off
+                stop()
+            default:
+                if let spec = HotKeyCenter.spec(from: event, allowPlain: true), !isTaken(spec) {
+                    trigger = .shortcut(spec)
+                    stop()
+                } else {
+                    NSSound.beep()
+                }
+            }
+            return nil
+        }
+    }
+
+    private func stop() {
+        recording = false
+        pendingModifier = nil
+        HotKeyCenter.shared.isSuspended = false
+        if let m = monitor { NSEvent.removeMonitor(m) }
+        monitor = nil
     }
 }
 

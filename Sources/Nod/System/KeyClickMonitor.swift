@@ -43,6 +43,8 @@ final class KeyClickMonitor {
     }
 
     private func handle(_ e: NSEvent) {
+        // Recording a shortcut: the keys are for the recorder, not clicks.
+        guard !HotKeyCenter.shared.isSuspended else { return }
         guard e.type == .flagsChanged else {
             onEvent(.otherKey)
             return
@@ -54,7 +56,19 @@ final class KeyClickMonitor {
         }
         seen += 1
         let down = UInt64(e.modifierFlags.rawValue) & key.deviceMask != 0
-        onEvent(down ? .down(key) : .up(key))
+        onEvent(down ? .down(.modifier(key)) : .up(.modifier(key)))
+    }
+}
+
+extension ClickTrigger {
+    /// Modifiers held while this trigger is down, taken off Nod's own mouse
+    /// events so a click never turns into a ⌘ or ⌥ click.
+    var eventFlags: CGEventFlags {
+        switch self {
+        case .off: []
+        case let .modifier(k): k.eventFlags
+        case let .shortcut(spec): spec.eventFlags
+        }
     }
 }
 

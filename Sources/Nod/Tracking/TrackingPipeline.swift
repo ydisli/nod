@@ -128,13 +128,10 @@ final class TrackingPipeline: @unchecked Sendable {
     func key(_ event: KeyClickEvent) {
         queue.async {
             guard self.running else { return }
-            let button = self.settings.clickKeys.leftButton
-            switch event {
-            case let .down(k) where k == button: self.driver.suppressedFlags = k.eventFlags
-            case let .up(k) where k == button: self.driver.suppressedFlags = []
-            default: break
-            }
+            if case let .down(t) = event { self.driver.suppressedFlags = t.eventFlags }
             self.execute(self.engine.key(event, time: Self.now()))
+            // Only now: a tap clicks on release, with the keys still held.
+            if case .up = event { self.driver.suppressedFlags = [] }
             // A key held down must be watched closely to turn into a drag.
             self.setClock(fast: true)
             self.publishHUD()

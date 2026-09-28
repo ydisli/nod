@@ -40,6 +40,8 @@ enum Rendering {
         let menuHeight = NSHostingController(rootView: menu).sizeThatFits(in: CGSize(width: 332, height: 4000)).height
         snapshot(menu, size: CGSize(width: 332, height: menuHeight), to: out("menu"))
 
+        // Show that any shortcut can click, next to a right-side key.
+        model.settings.clickKeys.rightClick = .shortcut(HotKeySpec(keyCode: 0x31, carbonModifiers: HotKeySpec.controlKey | HotKeySpec.optionKey, display: "⌃⌥Space"))
         for pane in [SettingsPane.pointer, .clicking, .permissions] {
             let router = SettingsRouter()
             router.pane = pane
