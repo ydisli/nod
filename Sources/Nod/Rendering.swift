@@ -57,8 +57,29 @@ enum Rendering {
         halo.hud = HUDState(dwellProgress: 0.62, dwellAction: .rightClick, gestureLevel: 0.7, tracking: true)
         halo.toast = HaloState.Toast(id: 1, text: "Right", symbol: PointerAction.rightClick.symbol)
         snapshot(HaloView(state: halo).background(Color(hex: 0x3A4152)), size: CGSize(width: 150, height: 150), to: out("halo"))
+        snapshot(StatusIconPreview(), size: CGSize(width: 220, height: 200), to: out("status-icon"))
         print("Wrote screens to \(dir)")
         return 0
+    }
+
+    /// The menu bar icon, enlarged and at real size, on a light and a dark bar.
+    private struct StatusIconPreview: View {
+        var body: some View {
+            VStack(spacing: 0) {
+                row(background: Color(white: 0.93), tint: .black)
+                row(background: Color(white: 0.16), tint: .white)
+            }
+        }
+
+        private func row(background: Color, tint: Color) -> some View {
+            HStack(spacing: 28) {
+                Image(nsImage: StatusIcon.image).renderingMode(.template).resizable().frame(width: 72, height: 72)
+                Image(nsImage: StatusIcon.image).renderingMode(.template).frame(width: 18, height: 18)
+            }
+            .foregroundStyle(tint)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(background)
+        }
     }
 
     /// Renders a pure SwiftUI view (no AppKit controls) at 1x.

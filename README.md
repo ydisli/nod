@@ -111,8 +111,8 @@ No Terminal, no developer tools. Nod is one app you download.
    **Security**, where it mentions Nod, and click **Open Anyway**. Enter your Mac password. (The
    button stays there for about an hour after step 3.
    [Apple explains this here](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac).)
-5. Nod opens with a short welcome tour, and an AirPods icon appears in the menu bar at the top of
-   your screen.
+5. Nod opens with a short welcome tour, and its icon, a small face with a pointer on the nose,
+   appears in the menu bar at the top of your screen.
 6. **Allow Accessibility.** The tour has a button for it. In the list that opens, switch Nod on.
    This is what lets Nod move the pointer and click.
 7. **Put in your AirPods.** The first time, macOS asks whether Nod may use motion data. Click

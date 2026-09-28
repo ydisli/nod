@@ -100,25 +100,26 @@ final class WindowManager: NSObject, NSPopoverDelegate, NSWindowDelegate {
     func updateStatusIcon() {
         guard let button = statusItem?.button else { return }
         let s = model.live.status
+        // "nod" is Nod's own icon; the rest are system symbols.
         let symbol: String
         var alpha: CGFloat = 1
         if model.headphoneError != nil && model.isEnabled {
             symbol = "exclamationmark.triangle"
         } else if !model.isEnabled {
-            symbol = "airpodspro"
+            symbol = "nod"
             alpha = 0.45
         } else if s.paused {
             symbol = "pause.circle"
         } else {
             // Full strength while head motion arrives, dimmed while waiting.
-            symbol = "airpodspro"
+            symbol = "nod"
             alpha = s.tracking ? 1 : 0.7
         }
         // Called on every HUD change; only touch the button when it changes.
         guard symbol != statusSymbol || alpha != statusAlpha else { return }
         statusSymbol = symbol
         statusAlpha = alpha
-        let image = NSImage(systemSymbolName: symbol, accessibilityDescription: "Nod")
+        let image = symbol == "nod" ? StatusIcon.image : NSImage(systemSymbolName: symbol, accessibilityDescription: "Nod")
         image?.isTemplate = true
         button.image = image
         button.alphaValue = alpha
