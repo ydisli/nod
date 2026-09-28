@@ -61,7 +61,7 @@ final class HaloController {
     private var shouldShow: Bool {
         guard enabled else { return false }
         let h = state.hud
-        return state.toast != nil || h.dwellProgress > 0.02 || h.dragging || h.scrolling || h.paused || h.gestureLevel > 0.3
+        return state.toast != nil || h.dwellProgress > 0.02 || h.dragging || h.scrolling || h.paused || h.gestureLevel >= 0.5
     }
 
     private func refreshVisibility() {

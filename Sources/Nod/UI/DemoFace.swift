@@ -1,9 +1,23 @@
 import Foundation
 import NodCore
 
-/// A real Vision landmark set (the author's face, as 76 anonymous points),
-/// used for illustrations before the camera is allowed and for the icon.
-/// Coordinates are a unit square around the face, mirrored, y down.
+/// Landmark polylines of a face, x and y in a unit square, y down.
+struct FaceMesh: Equatable {
+    var contour: [Vec2] = []
+    var leftEye: [Vec2] = []
+    var rightEye: [Vec2] = []
+    var leftBrow: [Vec2] = []
+    var rightBrow: [Vec2] = []
+    var nose: [Vec2] = []
+    var noseCrest: [Vec2] = []
+    var outerLips: [Vec2] = []
+    var innerLips: [Vec2] = []
+    var pupils: [Vec2] = []
+    var noseTip: Vec2 = .zero
+}
+
+/// A real face landmark set (the author's face, as 76 anonymous points), the
+/// drawing inside Nod's mark. A unit square around the face, mirrored, y down.
 enum DemoFace {
     private typealias V = Vec2
 

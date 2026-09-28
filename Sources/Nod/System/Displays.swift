@@ -27,7 +27,7 @@ enum Displays {
         }
     }
 
-    /// The display used for calibration and direct mapping.
+    /// The display used for recentring and direct aiming.
     static func mappingDisplay(preferred: UInt32?) -> Info? {
         let list = all()
         if let p = preferred, let d = list.first(where: { $0.id == p }) { return d }

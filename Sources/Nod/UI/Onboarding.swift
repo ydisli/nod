@@ -1,18 +1,18 @@
 import NodCore
 import SwiftUI
 
-/// First run: what Nod is, permissions, how to steer, how to click, calibrate.
+/// First run: what Nod is, permissions, how to click, then go.
 struct OnboardingView: View {
     @Environment(AppModel.self) private var model
     @State private var step: Int
-    let finish: (_ calibrate: Bool) -> Void
+    let finish: () -> Void
 
-    init(startAt step: Int = 0, finish: @escaping (_ calibrate: Bool) -> Void) {
+    init(startAt step: Int = 0, finish: @escaping () -> Void) {
         _step = State(initialValue: step)
         self.finish = finish
     }
 
-    private let steps = 5
+    private let steps = 4
 
     var body: some View {
         ZStack {
@@ -25,9 +25,8 @@ struct OnboardingView: View {
                     switch step {
                     case 0: welcome
                     case 1: permissions
-                    case 2: steering
-                    case 3: clicking
-                    default: calibrate
+                    case 2: clicking
+                    default: ready
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -55,16 +54,16 @@ struct OnboardingView: View {
                 NodMark(size: 64)
                     .shadow(color: Theme.blue.opacity(0.4), radius: 18, y: 6)
                 Text("Meet Nod").font(.system(size: 38, weight: .bold))
-                Text("Your face is the mouse.")
+                Text("Your head is the mouse.")
                     .font(.system(size: 20, weight: .medium))
                     .foregroundStyle(.white.opacity(0.85))
-                Text("Move the pointer with your nose or your eyes. Click by opening your mouth, raising your eyebrows or simply resting on a spot. All through the camera you already have.")
+                Text("Turn your head to move the pointer, using the motion sensors in your AirPods. Click with a key, a lean of the head or by resting on a spot. No camera.")
                     .font(.system(size: 14))
                     .foregroundStyle(.white.opacity(0.72))
                     .fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 8) {
                     chip("lock.fill", "On-device")
-                    chip("video.slash.fill", "No recording")
+                    chip("video.slash.fill", "No camera")
                     chip("chevron.left.forwardslash.chevron.right", "Open source")
                 }
                 .padding(.top, 6)
@@ -72,7 +71,13 @@ struct OnboardingView: View {
             .frame(maxWidth: 360, alignment: .leading)
 
             InkCard(cornerRadius: 22) {
-                FaceMeshView(sample: nil, placeholder: .demo)
+                VStack(spacing: 18) {
+                    Image(systemName: "airpodspro")
+                        .font(.system(size: 44, weight: .light))
+                        .foregroundStyle(Theme.teal)
+                    HeadDial(offset: Vec2(0.4, -0.25), lean: -0.14, leaning: 0.5)
+                        .frame(width: 170, height: 170)
+                }
             }
             .frame(width: 290, height: 330)
             .shadow(color: .black.opacity(0.4), radius: 24, y: 10)
@@ -81,67 +86,24 @@ struct OnboardingView: View {
 
     private var permissions: some View {
         VStack(alignment: .leading, spacing: 18) {
-            stepTitle("Two permissions", "macOS asks you to approve both. Nod uses them for nothing else.")
+            stepTitle("Two permissions", "Nod uses them for nothing else.")
             VStack(spacing: 12) {
-                PermissionCard(symbol: "camera.fill", title: "Camera", detail: "So Nod can see your face. Frames are analysed in memory and thrown away.",
-                               status: model.cameraPermission, buttonTitle: model.cameraPermission == .notDetermined ? "Allow Camera" : "Open Settings") {
-                    if model.cameraPermission == .notDetermined {
-                        Task {
-                            _ = await Permissions.requestCamera()
-                            model.refreshPermissions()
-                        }
-                    } else {
-                        Permissions.openCameraSettings()
-                    }
-                }
                 PermissionCard(symbol: "accessibility", title: "Accessibility", detail: "So Nod can move the pointer and click for you. Turn on Nod in the list that opens.",
                                status: model.accessibilityPermission, buttonTitle: "Open Settings") {
                     Permissions.promptAccessibility()
                     Permissions.openAccessibilitySettings()
                 }
+                PermissionCard(symbol: "airpodspro", title: "Headphone motion", detail: "So Nod can read how your head turns. macOS asks the first time Nod starts, with your AirPods in.",
+                               status: model.motionPermission, buttonTitle: nil) {}
             }
-            Text("Built Nod yourself? macOS remembers the permission per build, so a fresh build asks again.")
+            Text("Built Nod yourself? macOS remembers Accessibility per build signature, so an unsigned build may ask again.")
                 .font(.system(size: 11))
                 .foregroundStyle(.white.opacity(0.4))
         }
         .frame(maxWidth: 620)
     }
 
-    private var steering: some View {
-        @Bindable var model = model
-        return VStack(alignment: .leading, spacing: 18) {
-            stepTitle("How do you want to steer?", "You can switch any time from the menu bar.")
-            HStack(spacing: 14) {
-                ForEach(TrackingInput.allCases) { input in
-                    BigChoice(symbol: input.symbol,
-                              title: input.title, detail: input.summary,
-                              badge: badge(input),
-                              selected: model.settings.input == input) {
-                        model.settings.input = input
-                    }
-                }
-            }
-        }
-    }
-
-    private func badge(_ input: TrackingInput) -> String? {
-        switch input {
-        case .nose: "Recommended"
-        case .eyes: "Experimental"
-        case .headphones: "No camera"
-        case .hybrid: nil
-        }
-    }
-
-    @ViewBuilder private var clicking: some View {
-        if model.settings.input.usesCamera {
-            faceClicking
-        } else {
-            headClicking
-        }
-    }
-
-    private var headClicking: some View {
+    private var clicking: some View {
         @Bindable var model = model
         return VStack(alignment: .leading, spacing: 18) {
             stepTitle("How do you want to click?", "Pick any combination. Each can be tuned later.")
@@ -166,67 +128,19 @@ struct OnboardingView: View {
         .frame(maxWidth: 640)
     }
 
-    private var faceClicking: some View {
-        @Bindable var model = model
-        return VStack(alignment: .leading, spacing: 18) {
-            stepTitle("How do you want to click?", "Pick any combination. Each can be tuned later.")
-            VStack(spacing: 10) {
-                ToggleCard(symbol: "mouth", title: "Open your mouth to click",
-                           detail: "Keep it open to hold the button and drag.",
-                           isOn: gestureBinding(.mouthOpen))
-                ToggleCard(symbol: "eyebrow", title: "Raise your eyebrows to right click",
-                           detail: "Opens context menus.",
-                           isOn: gestureBinding(.browRaise))
-                ToggleCard(symbol: "timer", title: "Rest on a spot to click",
-                           detail: "Dwell clicking, with a palette for right click, double click, drag and scroll.",
-                           isOn: $model.settings.dwell.enabled)
-                ToggleCard(symbol: "eye.slash", title: "Close your eyes for a moment to pause",
-                           detail: "And again to resume. Handy for reading.",
-                           isOn: gestureBinding(.longBlink))
-            }
-        }
-        .frame(maxWidth: 640)
-    }
-
-    @ViewBuilder private var calibrate: some View {
-        if model.settings.input.isCalibratable {
-            cameraCalibrate
-        } else {
-            VStack(spacing: 18) {
-                Image(systemName: "airpodspro")
-                    .font(.system(size: 64, weight: .light))
-                    .foregroundStyle(Theme.teal)
-                    .frame(height: 150)
-                Text("No calibration needed").font(.system(size: 26, weight: .bold))
-                Text("Put in your AirPods and look at the middle of the screen. Turn your head to move the pointer. If it ever drifts, press \(model.settings.recenterHotKey.display) to recentre.")
-                    .font(.system(size: 14))
-                    .foregroundStyle(.white.opacity(0.7))
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 480)
-                Text("macOS asks once to let Nod read headphone motion.")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.white.opacity(0.45))
-            }
-        }
-    }
-
-    private var cameraCalibrate: some View {
+    private var ready: some View {
         VStack(spacing: 18) {
-            ZStack {
-                Circle().stroke(Theme.anodized, lineWidth: 3).frame(width: 110, height: 110)
-                Circle().stroke(Theme.anodized.opacity(0.4), lineWidth: 2).frame(width: 150, height: 150)
-                Circle().fill(.white).frame(width: 12, height: 12)
-                    .shadow(color: Theme.teal, radius: 10)
-            }
-            Text("Last step, a 20 second calibration").font(.system(size: 26, weight: .bold))
-            Text(model.settings.input == .nose
-                 ? "Point your nose at nine dots. Nod learns how far you like to move, so a comfortable turn reaches every corner."
-                 : "Follow nine dots with your eyes, keeping your head still. Nod learns how your eyes map to the screen.")
+            Image(systemName: "airpodspro")
+                .font(.system(size: 64, weight: .light))
+                .foregroundStyle(Theme.teal)
+                .frame(height: 150)
+            Text("Ready when your AirPods are").font(.system(size: 26, weight: .bold))
+            Text("Put them in and look at the middle of the screen. Turn your head to move the pointer. If it ever drifts, look at the middle and press \(model.settings.recenterHotKey.display).")
                 .font(.system(size: 14))
                 .foregroundStyle(.white.opacity(0.7))
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 480)
-            Text("Everything advances on its own. Press Esc at any time to stop.")
+            Text("Press \(model.settings.toggleHotKey.display) at any time to switch Nod on or off.")
                 .font(.system(size: 12))
                 .foregroundStyle(.white.opacity(0.45))
         }
@@ -239,7 +153,7 @@ struct OnboardingView: View {
             HStack(spacing: 7) {
                 ForEach(0..<steps, id: \.self) { i in
                     Capsule()
-                        .fill(i == step ? AnyShapeStyle(Theme.anodized) : AnyShapeStyle(.white.opacity(0.18)))
+                        .fill(i == step ? AnyShapeStyle(Theme.teal) : AnyShapeStyle(.white.opacity(0.18)))
                         .frame(width: i == step ? 22 : 7, height: 7)
                 }
             }
@@ -255,16 +169,8 @@ struct OnboardingView: View {
                 Button(step == 0 ? "Get Started" : "Continue") { go(step + 1) }
                     .buttonStyle(PrimaryButtonStyle())
                     .keyboardShortcut(.defaultAction)
-            } else if !model.settings.input.isCalibratable {
-                Button("Start Nod") { finish(false) }
-                    .buttonStyle(PrimaryButtonStyle())
-                    .keyboardShortcut(.defaultAction)
             } else {
-                Button("Skip for Now") { finish(false) }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.white.opacity(0.6))
-                    .padding(.trailing, 12)
-                Button("Start Calibration") { finish(true) }
+                Button("Start Nod") { finish() }
                     .buttonStyle(PrimaryButtonStyle())
                     .keyboardShortcut(.defaultAction)
             }
@@ -300,15 +206,6 @@ struct OnboardingView: View {
                     model.settings.headGestures[g] = b
                 })
     }
-
-    private func gestureBinding(_ g: FaceGesture) -> Binding<Bool> {
-        Binding(get: { model.settings.binding(for: g).enabled },
-                set: { on in
-                    var b = model.settings.binding(for: g)
-                    b.enabled = on
-                    model.settings.gestures[g] = b
-                })
-    }
 }
 
 struct PermissionCard: View {
@@ -316,7 +213,8 @@ struct PermissionCard: View {
     let title: String
     let detail: String
     let status: PermissionStatus
-    let buttonTitle: String
+    /// nil when only macOS can ask (it does so on first use).
+    let buttonTitle: String?
     let action: () -> Void
 
     var body: some View {
@@ -331,7 +229,7 @@ struct PermissionCard: View {
                 Label("Allowed", systemImage: "checkmark.circle.fill")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(Theme.green)
-            } else {
+            } else if let buttonTitle {
                 Button(buttonTitle, action: action)
                     .controlSize(.large)
             }
@@ -340,47 +238,6 @@ struct PermissionCard: View {
         .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(.white.opacity(0.05)))
         .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(status.isGranted ? Theme.green.opacity(0.35) : .white.opacity(0.08), lineWidth: 1))
         .animation(.easeOut(duration: 0.25), value: status)
-    }
-}
-
-struct BigChoice: View {
-    let symbol: String
-    let title: String
-    let detail: String
-    let badge: String?
-    let selected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    IconBadge(symbol: symbol, colors: selected ? [Theme.violet, Theme.teal] : [.gray.opacity(0.55), .gray.opacity(0.35)], size: 44)
-                    Spacer()
-                    Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                        .font(.system(size: 18))
-                        .foregroundStyle(selected ? AnyShapeStyle(Theme.teal) : AnyShapeStyle(.white.opacity(0.25)))
-                }
-                Text(title).font(.system(size: 18, weight: .semibold))
-                Text(detail).font(.system(size: 12)).foregroundStyle(.white.opacity(0.62)).fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 0)
-                if let badge {
-                    Text(badge.uppercased())
-                        .font(.system(size: 9, weight: .bold))
-                        .padding(.horizontal, 7).padding(.vertical, 3)
-                        .background(Capsule().fill((badge == "Recommended" ? Theme.teal : Theme.gold).opacity(0.18)))
-                        .foregroundStyle(badge == "Recommended" ? Theme.teal : Theme.gold)
-                }
-            }
-            .padding(16)
-            .frame(maxWidth: .infinity, minHeight: 210, alignment: .topLeading)
-            .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(.white.opacity(selected ? 0.09 : 0.04)))
-            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(selected ? AnyShapeStyle(Theme.anodized) : AnyShapeStyle(.white.opacity(0.08)), lineWidth: selected ? 1.5 : 1))
-            .contentShape(RoundedRectangle(cornerRadius: 18))
-        }
-        .buttonStyle(.plain)
-        .animation(.easeOut(duration: 0.2), value: selected)
     }
 }
 

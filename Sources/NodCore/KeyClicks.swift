@@ -125,6 +125,9 @@ public struct KeyClickDetector: Sendable {
 
     public var isHoldingButton: Bool { held?.pressed == true }
 
+    /// A click key is down; the clock must keep running to catch a hold.
+    public var isWaiting: Bool { held != nil }
+
     public mutating func handle(_ event: KeyClickEvent, time: Double, keys: ClickKeys) -> [KeyClickOutput] {
         guard keys.enabled else {
             let wasPressed = held?.pressed == true

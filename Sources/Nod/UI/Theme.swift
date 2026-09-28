@@ -23,17 +23,6 @@ enum Theme {
     static let panel = LinearGradient(colors: [Color(hex: 0x171D2A), Color(hex: 0x0C1017)], startPoint: .top, endPoint: .bottom)
 }
 
-extension TrackingInput {
-    var symbol: String {
-        switch self {
-        case .nose: "nose"
-        case .eyes: "eye"
-        case .hybrid: "sparkles"
-        case .headphones: "airpodspro"
-        }
-    }
-}
-
 extension Color {
     init(hex: UInt32, opacity: Double = 1) {
         self.init(.sRGB,
@@ -104,6 +93,9 @@ struct ActivationMeter: View {
     var height: CGFloat = 5
     /// The meter shows 0...`range`; the trigger tick sits at 1.
     var range = 1.6
+    /// Live meters update often enough on their own; animating each change
+    /// would keep redrawing between updates.
+    var animated = true
 
     var body: some View {
         GeometryReader { geo in
@@ -123,7 +115,7 @@ struct ActivationMeter: View {
             }
         }
         .frame(height: height)
-        .animation(.linear(duration: 0.08), value: value)
+        .animation(animated ? .linear(duration: 0.08) : nil, value: value)
     }
 }
 

@@ -3,72 +3,54 @@
 </p>
 
 <h1 align="center">Nod</h1>
-<p align="center"><b>Your face is the mouse.</b><br>
-Hands-free pointer control for macOS, through the camera you already have.</p>
+<p align="center"><b>Your head is the mouse.</b><br>
+Hands-free pointer control for macOS, through the AirPods you already wear.</p>
 
 <p align="center">
-  <img src="docs/screens/onboarding-0.jpg" width="720" alt="Nod's welcome screen with a live face mesh">
+  <img src="docs/screens/onboarding-0.jpg" width="720" alt="Nod's welcome screen">
 </p>
 
-Nod follows your nose (or your eyes, or your AirPods) to move the pointer, and turns expressions into clicks.
-Open your mouth to click, keep it open to drag, raise your eyebrows to right click, or simply
-rest on a spot. It lives in the menu bar, runs entirely on your Mac and is free and open source.
+Nod moves the pointer as you turn your head, using the motion sensors in AirPods with head
+tracking (AirPods Pro, AirPods Max and others that support spatial audio head tracking). Click
+with a key, a lean of the head, or by resting on a spot. It lives in the menu bar, runs entirely
+on your Mac, uses no camera, and is free and open source.
 
 It is built for people who cannot use a mouse or trackpad comfortably, whether because of a
 disability, an injury or RSI, and for anyone who wants their hands free.
 
 ## What it does
 
-**Four ways to steer**
+**Three ways to move**
 
-- **Nose** (recommended). Relative motion that feels like a mouse, direct aiming where your nose
-  points at a spot on screen, or a joystick that glides while you tilt away from centre.
-- **Eyes** (experimental). Look where you want to go. Webcam gaze is coarse, so it is honest about that.
-- **Hybrid**. Your eyes jump the pointer to the right area, your nose places it exactly.
-- **AirPods**. Turn your head with AirPods in. The camera stays off: AirPods with head tracking
-  for spatial audio measure the head's orientation themselves, so Nod only turns a few numbers
-  a second into pointer movement. No calibration, just Recentre.
+- **Relative**. Feels like a mouse: small head turns for fine control, quick ones travel far.
+- **Direct**. Your head aims at a spot on the screen. Look at the middle and press Recentre to
+  line it up, no calibration.
+- **Joystick**. Turn away from centre and the pointer glides. The least neck movement.
 
-**Clicking with your face.** Six expressions, each mapped to any action you choose, with a live
-meter that shows how strong the expression is and where it triggers.
+**Clicking**
 
-| Expression | Default | Can also do |
-| --- | --- | --- |
-| Open mouth | Left click, hold to drag | Any click, drag, scroll mode, pause, recentre, palette |
-| Raise eyebrows | Right click | |
-| Long blink | Pause or resume | |
-| Smile, left wink, right wink | Off | |
-
-While an expression forms, Nod holds the pointer steady so the click lands where you aimed.
-
-With AirPods, leaning your head sideways clicks, because leaning does not steer:
-
-| Head movement | Default |
+| Way | Does |
 | --- | --- |
-| Lean left | Left click, hold to drag |
-| Lean right | Right click |
-| Nod | Off (double click), since glancing at the keyboard looks similar |
+| Tap right ⌘ | Click. Tap twice to double click, hold to drag |
+| Tap right ⌥ | Right click |
+| Lean your head left | Click, keep leaning to drag |
+| Lean your head right | Right click |
+| Nod | Off at first (double click), since glancing at the keyboard looks similar |
+| Rest on a spot | Dwell click, with a palette for right click, double click, drag and scroll |
 
-A nod clicks where the pointer was before your head went down.
+A key press never moves your head, so key clicks land exactly where you aimed. Only the keys on
+the right side count, and only when pressed on their own, so shortcuts keep working. Nod never
+records what you type. Any right-hand modifier can take any of these jobs.
 
-**Clicking with keys.** Steer with your head and click with a key, which never moves the
-pointer. Tap right ⌘ to click, tap it twice to double click, hold it to drag; tap right ⌥ to
-right click. Any right-hand modifier can take any of these jobs. Only lone presses count, so
-shortcuts keep working, and Nod never records what you type.
+Leaning does not steer the pointer, so a lean can be held while you turn. While a lean forms, the
+pointer holds still so the click lands where you aimed, and a nod clicks where the pointer was
+before your head went down.
 
-**Dwell clicking.** Rest the pointer and a ring fills, then clicks. A floating palette of big
-targets picks what the next dwell does: right click, double click, drag, scroll or pause. You can
-dwell on the palette itself, so no gesture is ever required.
-
-**Guided calibration.** Nine targets, about twenty seconds, fully hands-free. Every step advances
-on its own once your face is steady, and Nod learns your range of movement and, optionally, how
-strongly you make each expression.
-
-**The rest.** Scroll mode (tilt to scroll), pause, recentre, multi-display support, global
-shortcuts, launch at login, and it steps aside the moment a helper touches the real mouse.
+**The rest.** Scroll mode, pause, recentre, multi-display support, global shortcuts, launch at
+login, and it steps aside the moment a helper touches the real mouse.
 
 <p align="center">
-  <img src="docs/screens/menu.png" width="300" alt="Menu bar panel with the live face mesh, gesture meters and quick controls">
+  <img src="docs/screens/menu.png" width="300" alt="Menu bar panel with the live head dial, tilt meters and quick controls">
   &nbsp;
   <img src="docs/screens/palette.png" width="80" alt="Dwell palette with click, right, double, drag, scroll and pause">
   &nbsp;
@@ -76,40 +58,35 @@ shortcuts, launch at login, and it steps aside the moment a helper touches the r
 </p>
 
 <p align="center">
-  <img src="docs/screens/settings-clicking.png" width="720" alt="Face gesture settings with live meters">
+  <img src="docs/screens/settings-clicking.png" width="720" alt="Clicking settings: keys, and lean gestures with live meters">
 </p>
-
-<p align="center">
-  <img src="docs/screens/calibration-targets.jpg" width="720" alt="Calibration target">
-</p>
-
-## Private by design
-
-- Video is analysed in memory and dropped. Nothing is recorded, stored or sent.
-- Nod makes no network connections. No account, no analytics.
-- Only your settings and calibration numbers are saved. The camera is on only while Nod is
-  tracking or showing a preview.
 
 ## Light on your Mac
 
-Measured on a MacBook Pro (Apple M5) with the built-in camera:
+The AirPods fuse their own gyroscope and accelerometer and send a finished orientation about 50
+times a second. Nod turns those few numbers into pointer movement; there is no image to analyse.
+
+Measured on a MacBook Pro (Apple M5) with simulated head motion at 50 updates a second:
 
 | State | CPU |
 | --- | --- |
-| Camera tracking, Balanced (24 fps) | about 21% of one core, plus the system camera service |
-| AirPods, waiting for them | 0.3% of one core |
+| Tracking, no Nod window open | under 1% of one core |
+| Tracking with the menu panel or live meters open | 3 to 5% |
 | Tracking off | 0% |
 
-The camera is the expensive part whatever reads it: macOS's own camera service costs CPU
-before any face analysis starts. The AirPods input avoids both.
+The pointer clock runs at 60 Hz only while head motion arrives (4 Hz when your AirPods are out),
+and the screen hears about live data only while a window shows it, at most ten times a second.
 
-Full face detection, the expensive step, runs a few times per second; in between Nod carries the
-face box along with the landmarks. When nobody is in front of the camera it looks at a third of
-the frames. Battery mode drops to 15 fps; Precision uses 720p at 30 fps for eye tracking.
+## Private by design
+
+- Nod makes no network connections. No account, no analytics.
+- It reads head orientation from your AirPods and nothing else. No camera, no microphone.
+- Only your settings are saved.
 
 ## Install
 
-Nod needs macOS 14 Sonoma or later. Build it from source (a signed download will follow):
+Nod needs macOS 14 Sonoma or later and AirPods with head tracking. Build it from source (a signed
+download will follow):
 
 ```bash
 git clone https://github.com/ydisli/nod.git
@@ -121,13 +98,10 @@ open build/Nod.app
 You need the Xcode command line tools with Swift 6 (`xcode-select --install`). `make install`
 copies the app to `/Applications`.
 
-On first launch a short tour asks for two permissions:
+Nod asks for two permissions:
 
-- **Camera**, to see your face.
 - **Accessibility**, to move the pointer and click. macOS silently ignores the events without it.
-
-Locally built apps are signed ad hoc, so macOS asks for Accessibility again after every new
-build. That is expected. Set `SIGN_IDENTITY` to a real certificate to avoid it.
+- **Headphone motion**, which macOS asks for the first time Nod reads your AirPods.
 
 ## Using it
 
@@ -135,36 +109,29 @@ build. That is expected. Set `SIGN_IDENTITY` to a real certificate to avoid it.
 | --- | --- |
 | ⌃⌥N | Start or stop Nod, your safety switch |
 | ⌃⌥C | Recentre the pointer |
-| ⌃⌥K | Calibrate |
 
-All three can be changed or cleared in Settings, Shortcuts. Right click the menu bar icon for a
-quick menu.
-
-For the best tracking, light your face from the front, put the camera at eye level about an arm's
-length away, and calibrate sitting the way you normally will.
+Both can be changed or cleared in Settings, Shortcuts. Right click the menu bar icon for a quick
+menu.
 
 ## How it works
 
 ```
-camera (native 420v, 640×480)
-  → Vision face detection, every few frames
-  → Vision landmarks on the carried face box, every frame (76 points)
-  → iris refinement: the darkest pixels inside each eye outline
-  → FaceGeometry: scale and roll invariant features (nose, head angle, gaze, expressions)
+AirPods (orientation, about 50 per second, via CMHeadphoneMotionManager)
+  → HeadPose: yaw, pitch and roll in screen terms
   → 1€ filter: steady when still, no lag when moving
-  → PointerEngine: relative / direct / joystick / eyes / hybrid, gestures, dwell, scroll
+  → PointerEngine: relative / direct / joystick, leans and nods, click keys, dwell, scroll
   → CGEvent mouse events, glided at 60 Hz
 ```
 
-All the maths lives in `NodCore`, a dependency-free Swift module with unit tests: the filters,
-the ridge regression behind calibration, the gesture and dwell state machines, the pupil locator
-and the pointer engine itself. The app target adds the camera, Vision, event posting and SwiftUI.
+All the logic lives in `NodCore`, a dependency-free Swift module with unit tests: the filter, the
+pointer engine, and the head gesture, click key and dwell state machines. The app target adds
+CoreMotion, event posting and SwiftUI.
 
 ```
-Sources/NodCore     tracking maths, fully tested
-Sources/Nod         menu bar app (camera, Vision, UI)
+Sources/NodCore     pointer logic, fully tested
+Sources/Nod         menu bar app (AirPods motion, events, UI)
 Tests/NodCoreTests  Swift Testing suite
-Support             Info.plist, entitlements, icon
+Support             Info.plist, icon
 scripts             build and developer tools
 ```
 
@@ -173,31 +140,26 @@ scripts             build and developer tools
 ```bash
 make test                     # unit tests
 make run                      # build and launch
-make icon                     # re-render the icon from the NodMark SwiftUI view
-.build/debug/Nod --diagnose-image face.jpg     # run the tracker on a photo
 .build/debug/Nod --render-screens /tmp/shots   # render every screen with demo data
 ```
 
 Launch with `open --env NOD_DEV=1 build/Nod.app` and `scripts/devctl.swift` can open screens,
-toggle tracking, print live stats (`status`) and capture Nod's own windows (`snapshot DIR`).
-
-Each calibration also writes its raw numbers (landmark-derived only, never images) to
-`~/Library/Application Support/Nod/last-calibration-v1.json`. Attaching that file to an issue is
-the fastest way to get tracking problems fixed.
+toggle tracking, print live stats (`status`) and capture Nod's own windows (`snapshot DIR`). Add
+`--env NOD_SIMULATE_HEAD=1 --env NOD_DRY_RUN=1` to run on made-up head motion with a pretend
+cursor, which is how the CPU numbers above were measured.
 
 ## Honest limits
 
-- Webcam eye tracking is coarse: expect the pointer to land near small targets, not on them.
-  Hybrid mode exists for exactly that.
-- Strong backlight, very dim rooms and bright reflections on glasses make tracking worse.
-- Expression thresholds differ from face to face. The Teach step in calibration tunes them to yours.
+- AirPods measure orientation relative to where they started, and it drifts slowly. Recentre
+  when the pointer and your gaze no longer line up.
+- Only AirPods with head tracking report motion to the Mac.
 
 ## Contributing
 
-Issues and pull requests are welcome, especially from people who use head or eye pointers every
-day. See [CONTRIBUTING.md](CONTRIBUTING.md).
+Issues and pull requests are welcome, especially from people who use head pointers every day.
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-MIT. See [LICENSE](LICENSE). Built on Apple Vision, with the 1€ filter by Géry Casiez, Nicolas
-Roussel and Daniel Vogel (CHI 2012).
+MIT. See [LICENSE](LICENSE). Smoothing by the 1€ filter of Géry Casiez, Nicolas Roussel and
+Daniel Vogel (CHI 2012).

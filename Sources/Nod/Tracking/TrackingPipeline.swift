@@ -1,29 +1,13 @@
-@preconcurrency import AVFoundation
 import Foundation
 import NodCore
 
-struct CameraDevice: Identifiable, Hashable, Sendable {
-    let id: String
-    let name: String
-
-    static func available() -> [CameraDevice] {
-        AVCaptureDevice.DiscoverySession(
-            deviceTypes: [.builtInWideAngleCamera, .external, .continuityCamera],
-            mediaType: .video, position: .unspecified
-        ).devices.map { CameraDevice(id: $0.uniqueID, name: $0.localizedName) }
-    }
-}
-
-/// A snapshot for the UI, sent after processed frames.
+/// A snapshot for the UI.
 struct FrameReport: Sendable {
-    var sample: FaceSample?
-    /// Latest AirPods pose, when that is the input.
     var head: HeadPose?
     var status: EngineStatus
-    var fps: Double
+    /// Head poses per second arriving from the headphones.
+    var rate: Double
     var processingMs: Double
-    /// Full face detections per second (the expensive step), for diagnostics.
-    var detectionsPerSecond: Double = 0
 }
 
 /// What the on-screen halo around the pointer needs to show.
@@ -35,30 +19,27 @@ struct HUDState: Sendable, Equatable {
     var paused = false
     var frozen = false
     var gestureLevel: Double = 0
-    var faceVisible = false
+    var tracking = false
 }
 
 enum PipelineEvent: Sendable {
     case frame(FrameReport)
     case hud(HUDState)
     case feedback(EngineFeedback)
-    case camera(running: Bool, error: String?)
     case headphones(running: Bool, connected: Bool, error: String?)
 }
 
-/// Owns the camera, Vision, the AirPods motion stream and the pointer engine.
+/// Owns the AirPods motion stream and the pointer engine.
 ///
-/// Everything inside runs on one serial queue: camera frames and head poses
-/// arrive on it, the 60 Hz pointer clock fires on it, and public methods hop
-/// onto it. Results go out through `sink`, which the app forwards to the main
-/// actor. Only one source runs at a time, picked by the input setting.
-final class TrackingPipeline: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, @unchecked Sendable {
+/// Everything inside runs on one serial queue: head poses arrive on it, the
+/// pointer clock fires on it, and public methods hop onto it. Results go out
+/// through `sink`, which the app forwards to the main actor.
+///
+/// Kept deliberately cheap: the clock runs at 60 Hz only while head motion
+/// arrives (4 Hz otherwise), and the UI hears from it at most 10 times a
+/// second while something on screen shows live data, twice a second if not.
+final class TrackingPipeline: @unchecked Sendable {
     private let queue = DispatchQueue(label: "com.slipperysign.nod.tracking", qos: .userInteractive)
-    /// Exposed for preview layers only; configured on the tracking queue.
-    let session = AVCaptureSession()
-    private let output = AVCaptureVideoDataOutput()
-    private var input: AVCaptureDeviceInput?
-    private let tracker = FaceTracker()
     private let engine: PointerEngine
     private let driver = MouseDriver()
     private let sink: @Sendable (PipelineEvent) -> Void
@@ -67,34 +48,26 @@ final class TrackingPipeline: NSObject, AVCaptureVideoDataOutputSampleBufferDele
     private var settings: NodSettings
     private var running = false
     private var clock: DispatchSourceTimer?
+    private var clockFast = false
     private var wantsFrames = false
-    private var processedTimes: [Double] = []
+    private var arrivals: [Double] = []
     private var processingAverage = 0.0
-    private var lastProcessed = 0.0
-    private var lastFaceSeen = 0.0
-    private var frameIndex = 0
+    private var lastReport = 0.0
     private var lastHUD = HUDState()
-    private var lastQuietReport = 0.0
-    private var runtimeErrorObserver: NSObjectProtocol?
-    private var detectionMark: (time: Double, count: Int) = (0, 0)
-    private var detectionRate = 0.0
     private var headphones: HeadphoneMotion?
-    private var usingHeadphones = false
-    private var headConnected = false
+    private var simulator: DispatchSourceTimer?
+    private var connected = false
     private var lastHeadTime = 0.0
     private var lastHeadCheck = 0.0
+
+    /// Developer option: `NOD_SIMULATE_HEAD=1` feeds made-up head motion
+    /// instead of AirPods, to measure CPU use without wearing them.
+    private static let simulate = ProcessInfo.processInfo.environment["NOD_SIMULATE_HEAD"] == "1"
 
     init(settings: NodSettings, sink: @escaping @Sendable (PipelineEvent) -> Void) {
         self.settings = settings
         self.engine = PointerEngine(settings: settings)
         self.sink = sink
-        super.init()
-        runtimeErrorObserver = NotificationCenter.default.addObserver(
-            forName: AVCaptureSession.runtimeErrorNotification, object: session, queue: nil
-        ) { [weak self] note in
-            let err = note.userInfo?[AVCaptureSessionErrorKey] as? Error
-            self?.sink(.camera(running: false, error: err?.localizedDescription ?? "The camera stopped unexpectedly."))
-        }
     }
 
     // MARK: - Control (callable from any thread)
@@ -114,60 +87,39 @@ final class TrackingPipeline: NSObject, AVCaptureVideoDataOutputSampleBufferDele
 
     func update(settings new: NodSettings) {
         queue.async {
-            let old = self.settings
             self.settings = new
             self.engine.settings = new
-            if self.running, old.input.usesCamera != new.input.usesCamera {
-                // Swap camera and AirPods without stopping pointer control.
-                self.stopSources()
-                self.startSource()
-                return
-            }
-            let cameraChanged = old.cameraID != new.cameraID || old.efficiency != new.efficiency
-            if self.running, cameraChanged, new.input.usesCamera {
-                do {
-                    try self.configureSession()
-                } catch {
-                    self.sink(.camera(running: self.session.isRunning, error: error.localizedDescription))
-                }
-            }
         }
-    }
-
-    func setProfiles(_ profiles: [TrackingInput: CalibrationProfile]) {
-        queue.async {
-            for input in TrackingInput.allCases where input != .hybrid {
-                self.engine.setProfile(profiles[input], for: input)
-            }
-        }
-    }
-
-    func setGestureBaseline(_ baseline: GestureBaseline?) {
-        queue.async { self.engine.setGestureBaseline(baseline) }
     }
 
     func setEnvironment(_ env: EngineEnvironment) {
         queue.async { self.engine.environment = env }
     }
 
-    /// Full rate reports with face samples, for visible UI. Otherwise the
-    /// pipeline only sends a short status twice a second.
+    /// Live reports for visible UI (meters, the head dial).
     func setWantsFrames(_ on: Bool) {
         queue.async { self.wantsFrames = on }
     }
 
-    /// Suspends pointer control (calibration) while the camera keeps running.
+    /// Suspends pointer control (previews) while head motion keeps flowing.
     func setSuspended(_ on: Bool) {
         queue.async {
             if on { self.driver.releaseAll() }
             self.engine.suspended = on
-            if !on { self.engine.reset(cursor: MouseDriver.cursorLocation()) }
+            if !on { self.engine.reset(cursor: self.driver.cursorLocation()) }
         }
     }
 
     func perform(_ action: PointerAction) {
         queue.async {
             self.execute(self.engine.perform(action, time: Self.now()))
+            self.publishHUD()
+        }
+    }
+
+    func setDwellOverride(_ action: PointerAction?) {
+        queue.async {
+            self.engine.setDwellOverride(action)
             self.publishHUD()
         }
     }
@@ -183,207 +135,56 @@ final class TrackingPipeline: NSObject, AVCaptureVideoDataOutputSampleBufferDele
             default: break
             }
             self.execute(self.engine.key(event, time: Self.now()))
+            // A key held down must be watched closely to turn into a drag.
+            self.setClock(fast: true)
             self.publishHUD()
         }
     }
 
-    func setDwellOverride(_ action: PointerAction?) {
-        queue.async {
-            self.engine.setDwellOverride(action)
-            self.publishHUD()
-        }
-    }
-
-    // MARK: - Camera
+    // MARK: - Source
 
     private func startOnQueue() {
         guard !running else { return }
         running = true
-        guard startSource() else {
-            running = false
-            return
-        }
-        engine.reset(cursor: MouseDriver.cursorLocation())
-        startClock()
-    }
-
-    /// Starts the camera or the AirPods stream, whichever the input needs.
-    @discardableResult
-    private func startSource() -> Bool {
-        processedTimes.removeAll()
-        if settings.input.usesCamera {
-            do {
-                try configureSession()
-            } catch {
-                sink(.camera(running: false, error: error.localizedDescription))
-                return false
-            }
-            session.startRunning()
-            guard session.isRunning else {
-                sink(.camera(running: false, error: "The camera could not be started. Another app may be using it."))
-                return false
-            }
-            tracker.reset()
-            lastFaceSeen = Self.now()
-            sink(.camera(running: true, error: nil))
+        lastHeadTime = 0
+        arrivals.removeAll()
+        engine.reset(cursor: driver.cursorLocation())
+        if Self.simulate {
+            startSimulator()
         } else {
             if headphones == nil {
                 headphones = HeadphoneMotion(queue: queue) { [weak self] event in self?.headphoneEvent(event) }
             }
-            usingHeadphones = true
-            lastHeadTime = 0
             headphones?.start()
-            sink(.headphones(running: true, connected: headConnected, error: nil))
         }
-        return true
-    }
-
-    private func stopSources() {
-        if session.isRunning {
-            session.stopRunning()
-            sink(.camera(running: false, error: nil))
-        }
-        if usingHeadphones {
-            headphones?.stop()
-            usingHeadphones = false
-            sink(.headphones(running: false, connected: headConnected, error: nil))
-        }
-        // Nothing is tracked any more: let gestures end and buttons go up.
-        execute(engine.trackingStopped(time: Self.now()))
+        setClock(fast: false)
+        sink(.headphones(running: true, connected: connected, error: nil))
     }
 
     private func stopOnQueue() {
+        guard running else { return }
         clock?.cancel()
         clock = nil
-        stopSources()
+        simulator?.cancel()
+        simulator = nil
+        headphones?.stop()
         running = false
+        // Nothing is tracked any more: let gestures end and buttons go up.
+        execute(engine.trackingStopped(time: Self.now()))
         driver.releaseAll()
-        processedTimes.removeAll()
+        arrivals.removeAll()
         lastHUD = HUDState()
         sink(.hud(lastHUD))
+        sink(.headphones(running: false, connected: connected, error: nil))
     }
-
-    private enum CameraError: LocalizedError {
-        case noCamera
-        case cannotAdd
-        var errorDescription: String? {
-            switch self {
-            case .noCamera: "No camera found. Connect one or pick another in Settings."
-            case .cannotAdd: "The camera is busy or not supported."
-            }
-        }
-    }
-
-    private func configureSession() throws {
-        let device = settings.cameraID.flatMap { AVCaptureDevice(uniqueID: $0) } ?? AVCaptureDevice.default(for: .video)
-        guard let device else { throw CameraError.noCamera }
-
-        session.beginConfiguration()
-        let preset: AVCaptureSession.Preset = settings.efficiency == .precision ? .hd1280x720 : .vga640x480
-        session.sessionPreset = session.canSetSessionPreset(preset) ? preset : .medium
-
-        if input?.device.uniqueID != device.uniqueID {
-            if let old = input { session.removeInput(old) }
-            let newInput = try AVCaptureDeviceInput(device: device)
-            guard session.canAddInput(newInput) else {
-                session.commitConfiguration()
-                throw CameraError.cannotAdd
-            }
-            session.addInput(newInput)
-            input = newInput
-        }
-        if !session.outputs.contains(output) {
-            output.alwaysDiscardsLateVideoFrames = true
-            output.setSampleBufferDelegate(self, queue: queue)
-            guard session.canAddOutput(output) else {
-                session.commitConfiguration()
-                throw CameraError.cannotAdd
-            }
-            session.addOutput(output)
-        }
-        // Ask for exactly what the camera produces. Requesting another format
-        // (even 420f versus the native 420v) makes AVFoundation convert every
-        // frame through Core Image, which cost more CPU than Vision itself.
-        let native = CMFormatDescriptionGetMediaSubType(device.activeFormat.formatDescription)
-        let biPlanar: Set<OSType> = [kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange, kCVPixelFormatType_420YpCbCr8BiPlanarFullRange]
-        let format = biPlanar.contains(native) ? native : kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
-        output.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: format]
-        session.commitConfiguration()
-
-        // Pin the frame rate when the camera supports it; otherwise frames
-        // are thinned out in software.
-        let fps = Double(settings.efficiency.framesPerSecond)
-        if device.activeFormat.videoSupportedFrameRateRanges.contains(where: { $0.minFrameRate <= fps && fps <= $0.maxFrameRate }),
-           (try? device.lockForConfiguration()) != nil {
-            let d = CMTime(value: 1, timescale: CMTimeScale(fps))
-            device.activeVideoMinFrameDuration = d
-            device.activeVideoMaxFrameDuration = d
-            device.unlockForConfiguration()
-        }
-    }
-
-    // MARK: - Frames
-
-    func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
-        guard running, !usingHeadphones, let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
-        let now = Self.now()
-        frameIndex += 1
-
-        // Nobody in front of the camera for a while: look only every third
-        // frame until someone comes back.
-        if now - lastFaceSeen > 3, frameIndex % 3 != 0 { return }
-        let interval = 1.0 / Double(settings.efficiency.framesPerSecond)
-        if now - lastProcessed < interval * 0.8 { return }
-        lastProcessed = now
-
-        let started = Self.now()
-        let sample = tracker.process(pixelBuffer, time: now, detectEvery: settings.efficiency.detectEvery)
-        execute(engine.ingest(sample, time: now))
-        let ms = (Self.now() - started) * 1000
-        processingAverage = processingAverage == 0 ? ms : processingAverage * 0.9 + ms * 0.1
-
-        if sample != nil { lastFaceSeen = now }
-        processedTimes.append(now)
-        processedTimes.removeAll { now - $0 > 1 }
-
-        if now - detectionMark.time >= 2 {
-            detectionRate = Double(tracker.detections - detectionMark.count) / (now - detectionMark.time)
-            detectionMark = (now, tracker.detections)
-        }
-
-        if wantsFrames || now - lastQuietReport > 0.5 {
-            lastQuietReport = now
-            sink(.frame(FrameReport(sample: wantsFrames ? sample : nil, status: engine.status,
-                                    fps: Double(processedTimes.count), processingMs: processingAverage,
-                                    detectionsPerSecond: detectionRate)))
-        }
-    }
-
-    // MARK: - AirPods
 
     private func headphoneEvent(_ event: HeadphoneMotion.Event) {
-        guard usingHeadphones else { return }
+        guard running else { return }
         switch event {
-        case let .pose(pose):
-            if !headConnected {
-                headConnected = true
-                sink(.headphones(running: true, connected: true, error: nil))
-            }
-            let now = Self.now()
-            lastHeadTime = now
-            let started = Self.now()
-            execute(engine.ingest(head: pose, time: now))
-            let ms = (Self.now() - started) * 1000
-            processingAverage = processingAverage == 0 ? ms : processingAverage * 0.9 + ms * 0.1
-            processedTimes.append(now)
-            processedTimes.removeAll { now - $0 > 1 }
-            if wantsFrames || now - lastQuietReport > 0.5 {
-                lastQuietReport = now
-                sink(.frame(FrameReport(sample: nil, head: pose, status: engine.status,
-                                        fps: Double(processedTimes.count), processingMs: processingAverage)))
-            }
+        case let .pose(p):
+            received(p)
         case let .connected(on):
-            headConnected = on
+            connected = on
             if on, Self.now() - lastHeadTime > 1 {
                 // Ask again: a request made before the headphones connected
                 // may never start sending.
@@ -392,31 +193,74 @@ final class TrackingPipeline: NSObject, AVCaptureVideoDataOutputSampleBufferDele
             sink(.headphones(running: true, connected: on, error: nil))
         case let .failed(message):
             // The next pose that arrives clears the error.
-            headConnected = false
+            connected = false
             sink(.headphones(running: true, connected: false, error: message))
         }
     }
 
+    private func received(_ pose: HeadPose) {
+        let now = Self.now()
+        if !connected {
+            connected = true
+            sink(.headphones(running: true, connected: true, error: nil))
+        }
+        lastHeadTime = now
+        setClock(fast: true)
+        let started = Self.now()
+        execute(engine.ingest(head: pose, time: now))
+        let ms = (Self.now() - started) * 1000
+        processingAverage = processingAverage == 0 ? ms : processingAverage * 0.95 + ms * 0.05
+        arrivals.append(now)
+        if arrivals.count > 120 { arrivals.removeFirst(arrivals.count - 120) }
+        report(pose, now: now)
+    }
+
+    private func report(_ pose: HeadPose?, now: Double) {
+        let interval = wantsFrames ? 0.1 : 0.5
+        guard now - lastReport >= interval else { return }
+        lastReport = now
+        let recent = arrivals.filter { now - $0 <= 1 }.count
+        sink(.frame(FrameReport(head: pose, status: engine.status, rate: Double(recent), processingMs: processingAverage)))
+    }
+
     /// AirPods send nothing when they leave the ears. Tell the engine, so the
     /// pointer stops and a held button is released in time.
-    private func checkHeadphonesQuiet(now: Double) {
-        guard usingHeadphones, now - lastHeadCheck > 0.1 else { return }
+    private func checkQuiet(now: Double) {
+        guard now - lastHeadCheck > 0.1 else { return }
         lastHeadCheck = now
         guard now - lastHeadTime > 0.4 else { return }
         execute(engine.ingest(head: nil, time: now))
-        if now - lastQuietReport > 0.5 {
-            lastQuietReport = now
-            processedTimes.removeAll()
-            sink(.frame(FrameReport(sample: nil, head: nil, status: engine.status, fps: 0, processingMs: processingAverage)))
+        report(nil, now: now)
+    }
+
+    // MARK: - Simulation
+
+    private func startSimulator() {
+        let t0 = Self.now()
+        let timer = DispatchSource.makeTimerSource(queue: queue)
+        timer.schedule(deadline: .now(), repeating: .milliseconds(20), leeway: .milliseconds(2))
+        timer.setEventHandler { [weak self] in
+            let t = Self.now() - t0
+            // Slow looks around the screen with a little sensor noise.
+            let yaw = 0.12 * sin(t * 0.7) + 0.05 * sin(t * 1.9) + Double.random(in: -0.002...0.002)
+            let pitch = 0.06 * sin(t * 0.5 + 1) + Double.random(in: -0.002...0.002)
+            let roll = 0.03 * sin(t * 0.3) + Double.random(in: -0.002...0.002)
+            self?.received(HeadPose(yaw: yaw, pitch: pitch, roll: roll))
         }
+        timer.resume()
+        simulator = timer
     }
 
     // MARK: - Clock
 
-    private func startClock() {
+    /// 60 Hz while the pointer can move, 4 Hz while nothing arrives.
+    private func setClock(fast: Bool) {
+        guard running, clock == nil || fast != clockFast else { return }
         clock?.cancel()
+        clockFast = fast
         let timer = DispatchSource.makeTimerSource(queue: queue)
-        timer.schedule(deadline: .now(), repeating: .nanoseconds(16_666_667), leeway: .milliseconds(2))
+        let interval: DispatchTimeInterval = fast ? .nanoseconds(16_666_667) : .milliseconds(250)
+        timer.schedule(deadline: .now(), repeating: interval, leeway: fast ? .milliseconds(2) : .milliseconds(50))
         timer.setEventHandler { [weak self] in self?.tick() }
         timer.resume()
         clock = timer
@@ -425,9 +269,10 @@ final class TrackingPipeline: NSObject, AVCaptureVideoDataOutputSampleBufferDele
     private func tick() {
         guard running else { return }
         let now = Self.now()
-        checkHeadphonesQuiet(now: now)
-        execute(engine.tick(time: now, cursor: MouseDriver.cursorLocation()))
+        checkQuiet(now: now)
+        execute(engine.tick(time: now, cursor: driver.cursorLocation()))
         publishHUD()
+        if clockFast, engine.isIdle, now - lastHeadTime > 1 { setClock(fast: false) }
     }
 
     private func execute(_ commands: [PointerCommand]) {
@@ -443,24 +288,20 @@ final class TrackingPipeline: NSObject, AVCaptureVideoDataOutputSampleBufferDele
     private func publishHUD() {
         let s = engine.status
         var level = 0.0
-        if usingHeadphones {
-            for g in [HeadGesture.tiltLeft, .tiltRight] where settings.binding(for: g).enabled {
-                level = max(level, s.headActivations[g] ?? 0)
-            }
-        } else {
-            for (g, b) in settings.gestures where b.enabled {
-                level = max(level, s.activations[g] ?? 0)
-            }
+        for g in [HeadGesture.tiltLeft, .tiltRight] where settings.binding(for: g).enabled {
+            level = max(level, s.activations[g] ?? 0)
         }
+        // Coarse steps: the halo only needs to look right, and every change
+        // costs a redraw on the main thread.
         let hud = HUDState(
-            dwellProgress: (s.dwellProgress * 60).rounded() / 60,
+            dwellProgress: (s.dwellProgress * 30).rounded() / 30,
             dwellAction: s.dwellAction,
             dragging: s.dragging,
             scrolling: s.scrolling,
             paused: s.paused,
             frozen: s.frozen,
-            gestureLevel: (min(level, 1.2) * 20).rounded() / 20,
-            faceVisible: s.faceVisible
+            gestureLevel: (min(level, 1.2) * 10).rounded() / 10,
+            tracking: s.tracking
         )
         if hud != lastHUD {
             lastHUD = hud

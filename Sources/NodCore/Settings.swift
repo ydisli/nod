@@ -1,43 +1,6 @@
 import Foundation
 
-/// What steers the pointer.
-public enum TrackingInput: String, Codable, CaseIterable, Sendable, Identifiable, CodingKeyRepresentable {
-    case nose
-    case eyes
-    case hybrid
-    case headphones
-
-    public var id: String { rawValue }
-
-    public var title: String {
-        switch self {
-        case .nose: "Nose"
-        case .eyes: "Eyes"
-        case .hybrid: "Hybrid"
-        case .headphones: "AirPods"
-        }
-    }
-
-    public var summary: String {
-        switch self {
-        case .nose: "Point with your nose. Precise, calm, works in most light."
-        case .eyes: "Look where you want to go. Fast but coarse with a webcam."
-        case .hybrid: "Eyes jump to the area, your nose places the pointer exactly."
-        case .headphones: "Turn your head with AirPods in. No camera, almost no CPU."
-        }
-    }
-
-    /// Which calibration profile this input relies on.
-    public var calibrationInput: TrackingInput { self == .hybrid ? .eyes : self }
-
-    /// AirPods report head motion themselves; everything else needs the camera.
-    public var usesCamera: Bool { self != .headphones }
-
-    /// Inputs a camera calibration exists for.
-    public var isCalibratable: Bool { usesCamera }
-}
-
-/// How nose movement becomes pointer movement.
+/// How head movement becomes pointer movement.
 public enum MotionStyle: String, Codable, CaseIterable, Sendable, Identifiable {
     case relative
     case direct
@@ -55,9 +18,9 @@ public enum MotionStyle: String, Codable, CaseIterable, Sendable, Identifiable {
 
     public var summary: String {
         switch self {
-        case .relative: "Moves like a mouse. Small head turns, fine control. Recommended."
-        case .direct: "Your nose aims at a spot on screen. Needs calibration."
-        case .joystick: "Tilt away from centre to glide. Least neck movement."
+        case .relative: "Moves like a mouse. Small head turns, fine control."
+        case .direct: "Your head aims at a spot on screen. Recentre lines it up."
+        case .joystick: "Turn away from centre to glide. Least neck movement."
         }
     }
 }
@@ -132,51 +95,6 @@ public enum PointerAction: String, Codable, CaseIterable, Sendable, Identifiable
     public static let gestureChoices: [PointerAction] = [.none, .leftClick, .leftHold, .rightClick, .doubleClick, .middleClick, .dragToggle, .scrollToggle, .pauseToggle, .recenter, .togglePalette]
 }
 
-/// Facial gestures Nod can recognise from a webcam.
-public enum FaceGesture: String, Codable, CaseIterable, Sendable, Identifiable, CodingKeyRepresentable {
-    case mouthOpen
-    case browRaise
-    case smile
-    case longBlink
-    case leftWink
-    case rightWink
-
-    public var id: String { rawValue }
-
-    public var title: String {
-        switch self {
-        case .mouthOpen: "Open mouth"
-        case .browRaise: "Raise eyebrows"
-        case .smile: "Smile"
-        case .longBlink: "Long blink"
-        case .leftWink: "Left wink"
-        case .rightWink: "Right wink"
-        }
-    }
-
-    public var instruction: String {
-        switch self {
-        case .mouthOpen: "Open your mouth as if saying “ah”"
-        case .browRaise: "Raise your eyebrows, surprised"
-        case .smile: "Smile wide"
-        case .longBlink: "Close both eyes, then open them"
-        case .leftWink: "Close only your left eye"
-        case .rightWink: "Close only your right eye"
-        }
-    }
-
-    public var symbol: String {
-        switch self {
-        case .mouthOpen: "mouth"
-        case .browRaise: "eyebrow"
-        case .smile: "face.smiling"
-        case .longBlink: "eye.slash"
-        case .leftWink: "eye"
-        case .rightWink: "eye"
-        }
-    }
-}
-
 /// Head movements Nod recognises from headphone motion sensors.
 public enum HeadGesture: String, Codable, CaseIterable, Sendable, Identifiable, CodingKeyRepresentable {
     case tiltLeft
@@ -223,17 +141,6 @@ public struct GestureBinding: Codable, Sendable, Equatable {
         self.action = action
         self.sensitivity = sensitivity
         self.holdTime = holdTime
-    }
-
-    public static func defaults(for gesture: FaceGesture) -> GestureBinding {
-        switch gesture {
-        case .mouthOpen: GestureBinding(enabled: true, action: .leftHold, holdTime: 0.08)
-        case .browRaise: GestureBinding(enabled: true, action: .rightClick, holdTime: 0.15)
-        case .smile: GestureBinding(enabled: false, action: .doubleClick, holdTime: 0.25)
-        case .longBlink: GestureBinding(enabled: true, action: .pauseToggle, holdTime: 0.8)
-        case .leftWink: GestureBinding(enabled: false, action: .leftClick, holdTime: 0.25)
-        case .rightWink: GestureBinding(enabled: false, action: .rightClick, holdTime: 0.25)
-        }
     }
 
     public static func defaults(for gesture: HeadGesture) -> GestureBinding {
@@ -291,7 +198,7 @@ public struct HotKeySpec: Codable, Sendable, Equatable, Hashable {
     public static let optionKey: UInt32 = 1 << 11
     public static let controlKey: UInt32 = 1 << 12
 
-    // kVK_ANSI_N = 0x2D, kVK_ANSI_C = 0x08, kVK_ANSI_K = 0x28
+    // kVK_ANSI_N = 0x2D, kVK_ANSI_C = 0x08
     /// A shortcut the user cleared. Stored explicitly so it is not replaced
     /// by the default on the next launch.
     public static let disabled = HotKeySpec(keyCode: .max, carbonModifiers: 0, display: "")
@@ -299,51 +206,9 @@ public struct HotKeySpec: Codable, Sendable, Equatable, Hashable {
 
     public static let defaultToggle = HotKeySpec(keyCode: 0x2D, carbonModifiers: controlKey | optionKey, display: "⌃⌥N")
     public static let defaultRecenter = HotKeySpec(keyCode: 0x08, carbonModifiers: controlKey | optionKey, display: "⌃⌥C")
-    public static let defaultCalibrate = HotKeySpec(keyCode: 0x28, carbonModifiers: controlKey | optionKey, display: "⌃⌥K")
-}
-
-public enum EfficiencyMode: String, Codable, CaseIterable, Sendable, Identifiable {
-    case battery
-    case balanced
-    case precision
-
-    public var id: String { rawValue }
-
-    public var title: String {
-        switch self {
-        case .battery: "Battery"
-        case .balanced: "Balanced"
-        case .precision: "Precision"
-        }
-    }
-
-    public var summary: String {
-        switch self {
-        case .battery: "15 fps, lowest energy use"
-        case .balanced: "24 fps, the sweet spot"
-        case .precision: "30 fps at 720p, best for eye tracking"
-        }
-    }
-
-    public var framesPerSecond: Int {
-        switch self {
-        case .battery: 15
-        case .balanced: 24
-        case .precision: 30
-        }
-    }
-    /// Full face detection runs every N frames; landmarks run every frame.
-    public var detectEvery: Int {
-        switch self {
-        case .battery: 4
-        case .balanced: 5
-        case .precision: 3
-        }
-    }
 }
 
 public struct NodSettings: Codable, Sendable, Equatable {
-    public var input: TrackingInput = .nose
     public var motion: MotionStyle = .relative
     /// Pointer speed multiplier, 0.25...3.
     public var speed: Double = 1.0
@@ -351,20 +216,14 @@ public struct NodSettings: Codable, Sendable, Equatable {
     public var acceleration: Double = 0.55
     /// 0 = raw, 1 = very smooth.
     public var smoothing: Double = 0.5
-    /// Eye tracking smoothing, separate because gaze is far noisier.
-    public var eyeSmoothing: Double = 0.75
-    /// Joystick dead zone, fraction of the calibrated range.
+    /// Joystick dead zone, fraction of the head's travel.
     public var deadzone: Double = 0.12
     /// Joystick top speed in screen widths per second.
     public var joystickSpeed: Double = 0.9
-    /// Hybrid: how far (fraction of screen width) the gaze must land from the
-    /// pointer before the pointer jumps there.
-    public var hybridJumpDistance: Double = 0.2
 
-    public var gestures: [FaceGesture: GestureBinding] = Dictionary(uniqueKeysWithValues: FaceGesture.allCases.map { ($0, GestureBinding.defaults(for: $0)) })
-    /// Clicks for the AirPods input.
+    /// Clicks by leaning or nodding.
     public var headGestures: [HeadGesture: GestureBinding] = Dictionary(uniqueKeysWithValues: HeadGesture.allCases.map { ($0, GestureBinding.defaults(for: $0)) })
-    /// Freeze the pointer while a face gesture forms, so clicks land where aimed.
+    /// Freeze the pointer while a tilt forms, so clicks land where aimed.
     public var holdSteadyWhileGesturing: Bool = true
     /// Click with the right-hand modifier keys while the head steers.
     public var clickKeys = ClickKeys()
@@ -374,16 +233,13 @@ public struct NodSettings: Codable, Sendable, Equatable {
     public var playSounds: Bool = true
     /// Hand the pointer back when the physical mouse or trackpad moves.
     public var yieldToMouse: Bool = true
-    public var cameraID: String?
-    public var efficiency: EfficiencyMode = .balanced
     public var invertX: Bool = false
     public var invertY: Bool = false
-    /// Display used for direct mapping and calibration (CGDirectDisplayID).
+    /// Display used for direct aiming and recentring (CGDirectDisplayID).
     public var displayID: UInt32?
 
     public var toggleHotKey: HotKeySpec = .defaultToggle
     public var recenterHotKey: HotKeySpec = .defaultRecenter
-    public var calibrateHotKey: HotKeySpec = .defaultCalibrate
 
     public var hasCompletedOnboarding: Bool = false
     /// Bumped when the meaning of `speed` changes, so stored values can be
@@ -392,10 +248,6 @@ public struct NodSettings: Codable, Sendable, Equatable {
     public static let currentMotionRevision = 2
 
     public init() {}
-
-    public func binding(for gesture: FaceGesture) -> GestureBinding {
-        gestures[gesture] ?? .defaults(for: gesture)
-    }
 
     public func binding(for gesture: HeadGesture) -> GestureBinding {
         headGestures[gesture] ?? .defaults(for: gesture)
@@ -406,18 +258,12 @@ public struct NodSettings: Codable, Sendable, Equatable {
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = NodSettings()
-        input = c.value(.input, default: d.input)
         motion = c.value(.motion, default: d.motion)
         speed = c.value(.speed, default: d.speed)
         acceleration = c.value(.acceleration, default: d.acceleration)
         smoothing = c.value(.smoothing, default: d.smoothing)
-        eyeSmoothing = c.value(.eyeSmoothing, default: d.eyeSmoothing)
         deadzone = c.value(.deadzone, default: d.deadzone)
         joystickSpeed = c.value(.joystickSpeed, default: d.joystickSpeed)
-        hybridJumpDistance = c.value(.hybridJumpDistance, default: d.hybridJumpDistance)
-        var g = d.gestures
-        for (k, v) in c.value(.gestures, default: [FaceGesture: GestureBinding]()) { g[k] = v }
-        gestures = g
         var h = d.headGestures
         for (k, v) in c.value(.headGestures, default: [HeadGesture: GestureBinding]()) { h[k] = v }
         headGestures = h
@@ -427,14 +273,11 @@ public struct NodSettings: Codable, Sendable, Equatable {
         showHalo = c.value(.showHalo, default: d.showHalo)
         playSounds = c.value(.playSounds, default: d.playSounds)
         yieldToMouse = c.value(.yieldToMouse, default: d.yieldToMouse)
-        cameraID = c.value(.cameraID, default: d.cameraID)
-        efficiency = c.value(.efficiency, default: d.efficiency)
         invertX = c.value(.invertX, default: d.invertX)
         invertY = c.value(.invertY, default: d.invertY)
         displayID = c.value(.displayID, default: d.displayID)
         toggleHotKey = c.value(.toggleHotKey, default: d.toggleHotKey)
         recenterHotKey = c.value(.recenterHotKey, default: d.recenterHotKey)
-        calibrateHotKey = c.value(.calibrateHotKey, default: d.calibrateHotKey)
         hasCompletedOnboarding = c.value(.hasCompletedOnboarding, default: d.hasCompletedOnboarding)
         motionRevision = c.value(.motionRevision, default: 1)
         if motionRevision < 2 {

@@ -26,18 +26,10 @@ struct FaceFraming {
             aspect: aspect
         )
     }
-
-    /// Full camera frame, scaled to fill the view like the preview layer.
-    static func camera(imageSize: Vec2, in size: CGSize) -> FaceFraming {
-        let s = max(size.width / CGFloat(imageSize.x), size.height / CGFloat(imageSize.y)) * CGFloat(imageSize.x)
-        let aspect = imageSize.y / imageSize.x
-        let drawnHeight = s * CGFloat(aspect)
-        return FaceFraming(scale: s, offset: CGPoint(x: (size.width - s) / 2, y: (size.height - drawnHeight) / 2), aspect: aspect)
-    }
 }
 
-/// Draws a face mesh into a Canvas: a soft glow pass, crisp lines, landmark
-/// dots, pupils and the nose tip.
+/// Draws the face drawing in Nod's mark: a soft glow pass, crisp lines,
+/// landmark dots, pupils and the nose tip.
 enum MeshRenderer {
     struct Style {
         var line: Color = Theme.teal
@@ -50,7 +42,7 @@ enum MeshRenderer {
     }
 
     static func draw(_ mesh: FaceMesh, framing f: FaceFraming, in ctx: inout GraphicsContext,
-                     style: Style = Style(), activations: [FaceGesture: Double] = [:]) {
+                     style: Style = Style()) {
         func path(_ pts: [Vec2], closed: Bool) -> Path {
             var p = Path()
             guard let first = pts.first else { return p }
@@ -61,8 +53,8 @@ enum MeshRenderer {
         }
         let lines: [(Path, Double)] = [
             (path(mesh.contour, closed: false), 0.55),
-            (path(mesh.leftBrow, closed: true), 0.8 + 0.2 * min(activations[.browRaise] ?? 0, 1)),
-            (path(mesh.rightBrow, closed: true), 0.8 + 0.2 * min(activations[.browRaise] ?? 0, 1)),
+            (path(mesh.leftBrow, closed: true), 0.8),
+            (path(mesh.rightBrow, closed: true), 0.8),
             (path(mesh.leftEye, closed: true), 1),
             (path(mesh.rightEye, closed: true), 1),
             (path(mesh.nose, closed: false), 0.8),
@@ -72,12 +64,6 @@ enum MeshRenderer {
         ]
 
         ctx.opacity = style.opacity
-
-        // Mouth fill follows the mouth gesture, so opening it visibly "charges".
-        let mouth = min(activations[.mouthOpen] ?? 0, 1.2)
-        if mouth > 0.05 {
-            ctx.fill(path(mesh.innerLips, closed: true), with: .color((mouth >= 1 ? Theme.gold : style.line).opacity(0.25 + 0.35 * min(mouth, 1))))
-        }
 
         if style.glow {
             ctx.drawLayer { layer in
@@ -114,73 +100,6 @@ enum MeshRenderer {
         }
         ctx.fill(Path(ellipseIn: CGRect(x: tip.x - nr, y: tip.y - nr, width: nr * 2, height: nr * 2)), with: .color(style.noseColor))
         ctx.fill(Path(ellipseIn: CGRect(x: tip.x - nr * 0.4, y: tip.y - nr * 0.4, width: nr * 0.8, height: nr * 0.8)), with: .color(.white))
-    }
-
-    /// A faint dot grid, the "instrument" backdrop.
-    static func grid(in ctx: inout GraphicsContext, size: CGSize, spacing: CGFloat = 14) {
-        var y = spacing / 2
-        while y < size.height {
-            var x = spacing / 2
-            while x < size.width {
-                ctx.fill(Path(ellipseIn: CGRect(x: x - 0.6, y: y - 0.6, width: 1.2, height: 1.2)), with: .color(.white.opacity(0.07)))
-                x += spacing
-            }
-            y += spacing
-        }
-    }
-}
-
-/// Live face mesh. Shows the demo face breathing when there is no sample.
-struct FaceMeshView: View {
-    var sample: FaceSample?
-    var activations: [FaceGesture: Double] = [:]
-    var framing: Framing = .face
-    var showGrid = true
-    var placeholder: Placeholder = .searching
-
-    enum Framing { case face, camera }
-    enum Placeholder { case searching, demo, none }
-
-    var body: some View {
-        if sample == nil, placeholder == .demo {
-            TimelineView(.animation(minimumInterval: 1.0 / 30)) { context in
-                let t = context.date.timeIntervalSinceReferenceDate
-                canvas(mesh: DemoFace.posed(yaw: sin(t * 0.7) * 0.32, pitch: sin(t * 0.45) * 0.12,
-                                            mouth: max(0, sin(t * 0.9 + 1.5)) * 0.9,
-                                            blink: max(0, sin(t * 2.3)) > 0.985 ? 1 : 0),
-                       aspect: 1, imageSize: nil, dim: false)
-            }
-        } else if let s = sample {
-            canvas(mesh: s.mesh, aspect: s.imageSize.y / s.imageSize.x, imageSize: s.imageSize, dim: false)
-        } else {
-            TimelineView(.animation(minimumInterval: 1.0 / 20)) { context in
-                let t = context.date.timeIntervalSinceReferenceDate
-                canvas(mesh: placeholder == .none ? nil : DemoFace.posed(yaw: sin(t * 0.5) * 0.2, pitch: 0),
-                       aspect: 1, imageSize: nil, dim: true)
-            }
-        }
-    }
-
-    private func canvas(mesh: FaceMesh?, aspect: Double, imageSize: Vec2?, dim: Bool) -> some View {
-        Canvas { ctx, size in
-            if showGrid { MeshRenderer.grid(in: &ctx, size: size) }
-            guard let mesh else { return }
-            let f: FaceFraming
-            if framing == .camera, let imageSize {
-                f = .camera(imageSize: imageSize, in: size)
-            } else {
-                f = .face(mesh, aspect: aspect, in: size)
-            }
-            var style = MeshRenderer.Style()
-            style.lineWidth = max(1.1, min(size.width, size.height) / 150)
-            style.noseRadius = style.lineWidth * 3.4
-            if dim {
-                style.opacity = 0.28
-                style.line = .white
-                style.noseColor = .white
-            }
-            MeshRenderer.draw(mesh, framing: f, in: &ctx, style: style, activations: activations)
-        }
     }
 }
 

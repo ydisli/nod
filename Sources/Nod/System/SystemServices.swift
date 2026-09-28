@@ -1,6 +1,5 @@
 import AppKit
 import ApplicationServices
-import AVFoundation
 import Carbon.HIToolbox
 import NodCore
 import ServiceManagement
@@ -17,14 +16,6 @@ enum PermissionStatus: String, Equatable {
 
 @MainActor
 enum Permissions {
-    static var camera: PermissionStatus {
-        switch AVCaptureDevice.authorizationStatus(for: .video) {
-        case .authorized: .granted
-        case .notDetermined: .notDetermined
-        default: .denied
-        }
-    }
-
     /// Headphone motion, for the AirPods input. macOS asks the first time
     /// Nod starts reading it.
     static var motion: PermissionStatus {
@@ -37,10 +28,6 @@ enum Permissions {
 
     static var accessibility: PermissionStatus {
         AXIsProcessTrusted() ? .granted : .denied
-    }
-
-    static func requestCamera() async -> Bool {
-        await AVCaptureDevice.requestAccess(for: .video)
     }
 
     /// Shows the system prompt that leads to the Accessibility list.
@@ -57,10 +44,6 @@ enum Permissions {
 
     static func openPrivacySettings() {
         open("x-apple.systempreferences:com.apple.preference.security")
-    }
-
-    static func openCameraSettings() {
-        open("x-apple.systempreferences:com.apple.preference.security?Privacy_Camera")
     }
 
     private static func open(_ s: String) {
@@ -214,7 +197,7 @@ enum Sounds {
         case .dragEnded: play("Bottle", volume: 0.25)
         case let .scrollMode(on): play(on ? "Purr" : "Bottle", volume: 0.25)
         case let .paused(on): play(on ? "Submarine" : "Glass", volume: 0.3)
-        case .faceLost, .faceFound, .paletteToggleRequested: break
+        case .lost, .found, .paletteToggleRequested: break
         }
     }
 }

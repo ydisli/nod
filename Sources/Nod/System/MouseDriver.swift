@@ -7,6 +7,11 @@ import NodCore
 ///
 /// Thread safe enough for its use: only called from the tracking queue.
 final class MouseDriver {
+    /// Developer option: `NOD_DRY_RUN=1` posts nothing and keeps a pretend
+    /// cursor, so Nod can be measured without taking over the real one.
+    private static let dryRun = ProcessInfo.processInfo.environment["NOD_DRY_RUN"] == "1"
+    private var pretendCursor: Vec2?
+
     private let source = CGEventSource(stateID: .hidSystemState)
     private var pressed: Set<MouseButton> = []
     private var lastPress: (time: Double, point: CGPoint, button: MouseButton)?
@@ -16,12 +21,17 @@ final class MouseDriver {
     var suppressedFlags: CGEventFlags = []
 
     /// Where the system cursor is right now, in global display points (y down).
-    static func cursorLocation() -> Vec2 {
+    func cursorLocation() -> Vec2 {
+        if Self.dryRun, let p = pretendCursor { return p }
         let p = CGEvent(source: nil)?.location ?? .zero
         return Vec2(Double(p.x), Double(p.y))
     }
 
     func execute(_ command: PointerCommand) {
+        if Self.dryRun {
+            if case let .move(to, _) = command { pretendCursor = to }
+            return
+        }
         switch command {
         case let .move(to, dragging):
             move(to: cg(to), dragging: dragging)

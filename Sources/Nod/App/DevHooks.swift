@@ -28,15 +28,14 @@ enum DevHooks {
         switch parts.first {
         case "settings": windows.showSettings(pane: SettingsPane(rawValue: arg) ?? .general)
         case "popover": windows.showPopoverForDev()
+        case "close": windows.closeAllForDev()
         case "onboarding": windows.showOnboarding()
         case "palette": windows.togglePalette()
-        case "calibrate": windows.startCalibration()
-        case "input": if let input = TrackingInput(rawValue: arg) { model.settings.input = input }
         case "enable": model.setEnabled(true)
         case "disable": model.setEnabled(false)
         case "snapshot": snapshot(to: arg.isEmpty ? NSTemporaryDirectory() + "nod-shots" : arg)
         case "status":
-            let line = "enabled=\(model.isEnabled) calibrating=\(model.isCalibrating) camera=\(model.live.cameraRunning) \(model.debugClients)\n"
+            let line = "enabled=\(model.isEnabled) \(model.debugClients)\n"
             let url = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("nod-dev.log")
             if let h = try? FileHandle(forWritingTo: url) {
                 h.seekToEndOfFile()

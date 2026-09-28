@@ -8,17 +8,15 @@ let package = Package(
         .executable(name: "Nod", targets: ["Nod"]),
     ],
     targets: [
-        // Pure logic: filters, calibration maths, gesture and dwell state machines,
-        // face geometry. No AppKit, no camera, fully unit tested.
+        // Pure logic: filters, the pointer engine, head gesture, click key and
+        // dwell state machines. No AppKit, fully unit tested.
         .target(name: "NodCore"),
 
-        // The menu bar app: camera, Vision, event posting and all UI.
+        // The menu bar app: AirPods motion, event posting and all UI.
         .executableTarget(
             name: "Nod",
             dependencies: ["NodCore"],
             linkerSettings: [
-                .linkedFramework("AVFoundation"),
-                .linkedFramework("Vision"),
                 .linkedFramework("Carbon"),
                 .linkedFramework("CoreMotion"),
                 .linkedFramework("ServiceManagement"),

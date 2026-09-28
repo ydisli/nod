@@ -34,11 +34,11 @@ if [ "$SIGN_IDENTITY" = "-" ]; then
   # For local builds, pin the requirement to the bundle identifier instead.
   # Distribute only builds signed with a real identity.
   echo "› Signing (ad-hoc, local build)"
-  codesign --force --options runtime --entitlements Support/Nod.entitlements --sign - \
+  codesign --force --options runtime --sign - \
     --requirements '=designated => identifier "com.slipperysign.nod"' "$APP"
 else
   echo "› Signing ($SIGN_IDENTITY)"
-  codesign --force --options runtime --entitlements Support/Nod.entitlements --sign "$SIGN_IDENTITY" "$APP"
+  codesign --force --options runtime --sign "$SIGN_IDENTITY" "$APP"
 fi
 codesign --verify --strict "$APP"
 

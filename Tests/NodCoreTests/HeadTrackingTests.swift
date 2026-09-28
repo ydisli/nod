@@ -8,7 +8,6 @@ struct HeadTrackingTests {
 
     static func makeEngine(_ edit: (inout NodSettings) -> Void = { _ in }) -> PointerEngine {
         var s = NodSettings()
-        s.input = .headphones
         s.smoothing = 0
         edit(&s)
         let env = EngineEnvironment(displays: [Rect2(x: 0, y: 0, width: 1600, height: 1000)],
@@ -127,7 +126,7 @@ struct HeadTrackingTests {
         #expect(cursor.distance(to: Vec2(300, 200)) < 3)
 
         // Turning right by a tenth of the travel moves a tenth of the screen.
-        let turned = HeadPose(yaw: 1.2 + PointerEngine.headphoneTravel.x / 10, pitch: -0.3, roll: 0)
+        let turned = HeadPose(yaw: 1.2 + PointerEngine.headTravel.x / 10, pitch: -0.3, roll: 0)
         _ = Self.run(e, from: 0.5, seconds: 0.6, cursor: &cursor, pose: { _ in turned })
         #expect(abs(cursor.x - 460) < 5)
 
@@ -141,11 +140,11 @@ struct HeadTrackingTests {
         var cursor = Vec2(800, 500)
         e.reset(cursor: cursor)
         _ = Self.run(e, from: 0, seconds: 0.5, cursor: &cursor, pose: { _ in .zero })
-        #expect(e.status.faceVisible)
+        #expect(e.status.tracking)
         for i in 0..<30 {
             _ = e.ingest(head: nil, time: 0.5 + Double(i) / 25)
         }
-        #expect(!e.status.faceVisible)
+        #expect(!e.status.tracking)
     }
 
     @Test func settingsWithoutHeadGesturesGetDefaults() throws {

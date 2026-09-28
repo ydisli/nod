@@ -13,7 +13,6 @@ final class WindowManager: NSObject, NSPopoverDelegate, NSWindowDelegate {
     private let router = SettingsRouter()
     private let halo = HaloController()
     private lazy var palette = PaletteController(model: model)
-    private lazy var calibration = CalibrationController(model: model)
 
     init(model: AppModel) {
         self.model = model
@@ -28,13 +27,9 @@ final class WindowManager: NSObject, NSPopoverDelegate, NSWindowDelegate {
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
             button.setAccessibilityLabel("Nod")
         }
-        let host = NSHostingController(rootView: MenuPanel().environment(model))
-        host.sizingOptions = .preferredContentSize
-        popover.contentViewController = host
         popover.behavior = .transient
         popover.animates = true
         popover.delegate = self
-        calibration.onClose = { [weak self] in self?.refreshOverlays() }
         halo.enabled = model.settings.showHalo
         updateStatusIcon()
     }
@@ -53,6 +48,13 @@ final class WindowManager: NSObject, NSPopoverDelegate, NSWindowDelegate {
         if popover.isShown {
             popover.performClose(nil)
         } else if let button = statusItem.button {
+            // Built fresh for each showing and thrown away on close, so a
+            // closed panel costs nothing and never asks for live updates.
+            let host = NSHostingController(rootView: MenuPanel().environment(model))
+            host.sizingOptions = .preferredContentSize
+            popover.contentViewController = host
+            model.retainFrames("menu")
+            model.watchPermissions(true, client: "menu")
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             popover.contentViewController?.view.window?.makeKey()
         }
@@ -71,9 +73,9 @@ final class WindowManager: NSObject, NSPopoverDelegate, NSWindowDelegate {
         let toggle = NSMenuItem(title: model.isEnabled ? "Stop Nod" : "Start Nod", action: #selector(menuToggle), keyEquivalent: "")
         toggle.target = self
         menu.addItem(toggle)
-        let calibrate = NSMenuItem(title: "Calibrate…", action: #selector(menuCalibrate), keyEquivalent: "")
-        calibrate.target = self
-        menu.addItem(calibrate)
+        let recentre = NSMenuItem(title: "Recentre", action: #selector(menuRecentre), keyEquivalent: "")
+        recentre.target = self
+        menu.addItem(recentre)
         let settings = NSMenuItem(title: "Settings…", action: #selector(menuSettings), keyEquivalent: ",")
         settings.target = self
         menu.addItem(settings)
@@ -85,7 +87,7 @@ final class WindowManager: NSObject, NSPopoverDelegate, NSWindowDelegate {
     }
 
     @objc private func menuToggle() { model.toggleEnabled() }
-    @objc private func menuCalibrate() { startCalibration() }
+    @objc private func menuRecentre() { model.recenter() }
     @objc private func menuSettings() { showSettings(pane: nil) }
 
     private var statusSymbol = ""
@@ -96,17 +98,17 @@ final class WindowManager: NSObject, NSPopoverDelegate, NSWindowDelegate {
         let s = model.live.status
         let symbol: String
         var alpha: CGFloat = 1
-        if model.cameraError != nil && model.isEnabled {
+        if model.headphoneError != nil && model.isEnabled {
             symbol = "exclamationmark.triangle"
         } else if !model.isEnabled {
-            symbol = "nose"
-            alpha = 0.55
+            symbol = "airpodspro"
+            alpha = 0.45
         } else if s.paused {
             symbol = "pause.circle"
-        } else if s.faceVisible {
-            symbol = "nose.fill"
         } else {
-            symbol = "nose"
+            // Full strength while head motion arrives, dimmed while waiting.
+            symbol = "airpodspro"
+            alpha = s.tracking ? 1 : 0.7
         }
         // Called on every HUD change; only touch the button when it changes.
         guard symbol != statusSymbol || alpha != statusAlpha else { return }
@@ -119,7 +121,11 @@ final class WindowManager: NSObject, NSPopoverDelegate, NSWindowDelegate {
         button.toolTip = model.isEnabled ? "Nod is on" : "Nod is off"
     }
 
-    func popoverDidClose(_ notification: Notification) {}
+    func popoverDidClose(_ notification: Notification) {
+        model.releaseFrames("menu")
+        model.watchPermissions(false, client: "menu")
+        popover.contentViewController = nil
+    }
 
     // MARK: Windows
 
@@ -147,8 +153,8 @@ final class WindowManager: NSObject, NSPopoverDelegate, NSWindowDelegate {
     func showOnboarding() {
         closePopover()
         if onboardingWindow == nil {
-            let host = NSHostingController(rootView: OnboardingView { [weak self] calibrate in
-                self?.finishOnboarding(calibrate: calibrate)
+            let host = NSHostingController(rootView: OnboardingView { [weak self] in
+                self?.finishOnboarding()
             }.environment(model))
             let w = NSWindow(contentViewController: host)
             w.title = "Welcome to Nod"
@@ -166,44 +172,35 @@ final class WindowManager: NSObject, NSPopoverDelegate, NSWindowDelegate {
         onboardingWindow?.makeKeyAndOrderFront(nil)
     }
 
-    private func finishOnboarding(calibrate: Bool) {
+    private func finishOnboarding() {
         model.settings.hasCompletedOnboarding = true
         onboardingWindow?.close()
-        if calibrate {
-            startCalibration()
-        } else {
-            model.setEnabled(true)
-        }
-    }
-
-    func startCalibration(input: TrackingInput? = nil, gesturesOnly: Bool = false) {
-        closePopover()
-        guard !calibration.isRunning else { return }
-        let target = input ?? model.settings.input.calibrationInput
-        if !gesturesOnly, input == nil, !target.isCalibratable {
-            // AirPods need no calibration; the shortcut recentres instead.
-            model.recenter()
-            return
-        }
-        if !model.settings.input.usesCamera {
-            // Calibrating the face means steering with it; the camera must run.
-            model.settings.input = gesturesOnly ? .nose : target
-        }
-        guard model.cameraPermission == .granted else {
-            showSettings(pane: .permissions)
-            return
-        }
-        halo.hide()
-        palette.hide()
-        let kind: CalibrationSession.Kind = gesturesOnly ? .gestures : .movement(target)
-        calibration.start(kind)
+        model.setEnabled(true)
     }
 
     func windowWillClose(_ notification: Notification) {
-        if (notification.object as? NSWindow) === onboardingWindow, !model.settings.hasCompletedOnboarding {
+        guard let window = notification.object as? NSWindow else { return }
+        if window === onboardingWindow, !model.settings.hasCompletedOnboarding {
             // Closing the tour still leaves a usable app.
             model.settings.hasCompletedOnboarding = true
         }
+        // Throw closed windows away: their views stop listening for live
+        // data and previews end. Rebuilt on the next showing.
+        DispatchQueue.main.async { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                window.contentViewController = nil
+                if window === self.settingsWindow { self.settingsWindow = nil }
+                if window === self.onboardingWindow { self.onboardingWindow = nil }
+            }
+        }
+    }
+
+    /// For developer checks: closes the panel and every window.
+    func closeAllForDev() {
+        closePopover()
+        settingsWindow?.performClose(nil)
+        onboardingWindow?.performClose(nil)
     }
 
     // MARK: Overlays
@@ -216,7 +213,6 @@ final class WindowManager: NSObject, NSPopoverDelegate, NSWindowDelegate {
     }
 
     func hudChanged(_ hud: HUDState) {
-        guard !calibration.isRunning else { return }
         halo.update(hud)
         updateStatusIcon()
     }
@@ -230,7 +226,7 @@ final class WindowManager: NSObject, NSPopoverDelegate, NSWindowDelegate {
         case let .scrollMode(on): halo.toast(on ? "Scroll mode" : "Scroll off", symbol: "arrow.up.and.down")
         case let .paused(on): halo.toast(on ? "Paused" : "Resumed", symbol: on ? "pause.fill" : "play.fill")
         case .paletteToggleRequested: togglePalette()
-        case .faceLost, .faceFound: updateStatusIcon()
+        case .lost, .found: updateStatusIcon()
         }
     }
 
@@ -247,7 +243,7 @@ final class WindowManager: NSObject, NSPopoverDelegate, NSWindowDelegate {
     /// Shows the palette automatically while tracking with dwell on.
     private func refreshOverlays() {
         let d = model.settings.dwell
-        let wantPalette = model.isEnabled && d.enabled && d.showPalette && !calibration.isRunning
+        let wantPalette = model.isEnabled && d.enabled && d.showPalette
         if wantPalette, !palette.isVisible {
             palette.show()
         } else if !wantPalette, palette.isVisible, !model.isEnabled || !d.enabled {

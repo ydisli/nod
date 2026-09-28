@@ -40,53 +40,21 @@ enum Rendering {
         let menuHeight = NSHostingController(rootView: menu).sizeThatFits(in: CGSize(width: 332, height: 4000)).height
         snapshot(menu, size: CGSize(width: 332, height: menuHeight), to: out("menu"))
 
-        for pane in [SettingsPane.pointer, .clicking, .calibration] {
+        for pane in [SettingsPane.pointer, .clicking, .permissions] {
             let router = SettingsRouter()
             router.pane = pane
             snapshot(SettingsView(router: router).environment(model), size: CGSize(width: 820, height: 600),
                      to: out("settings-\(pane.rawValue)"), titled: true)
         }
-        for step in [0, 2, 3] {
-            snapshot(OnboardingView(startAt: step) { _ in }.environment(model), size: CGSize(width: 780, height: 540), to: out("onboarding-\(step)"))
+        for step in 0..<4 {
+            snapshot(OnboardingView(startAt: step) {}.environment(model), size: CGSize(width: 780, height: 540), to: out("onboarding-\(step)"))
         }
         snapshot(PaletteView(onClose: {}).environment(model), size: NSHostingView(rootView: PaletteView(onClose: {}).environment(model)).fittingSize, to: out("palette"))
 
         let halo = HaloState()
-        halo.hud = HUDState(dwellProgress: 0.62, dwellAction: .rightClick, gestureLevel: 0.7, faceVisible: true)
+        halo.hud = HUDState(dwellProgress: 0.62, dwellAction: .rightClick, gestureLevel: 0.7, tracking: true)
         halo.toast = HaloState.Toast(id: 1, text: "Right", symbol: PointerAction.rightClick.symbol)
         snapshot(HaloView(state: halo).background(Color(hex: 0x3A4152)), size: CGSize(width: 150, height: 150), to: out("halo"))
-
-        // The AirPods input: menu, gestures and steering with a demo head pose.
-        model.settings.input = .headphones
-        model.live.cameraRunning = false
-        model.live.headphonesRunning = true
-        model.live.headphonesConnected = true
-        model.live.fps = 25
-        model.live.processingMs = 0.04
-        model.live.head = HeadPose(yaw: 0.1, pitch: -0.05, roll: -0.12)
-        model.live.status.headOffset = Vec2(0.38, -0.22)
-        model.live.status.headLean = -0.12
-        model.live.status.headActivations = [.tiltLeft: 0.66, .tiltRight: 0]
-        let airMenu = MenuPanel().environment(model)
-            .background(Color(nsColor: .windowBackgroundColor))
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        let airHeight = NSHostingController(rootView: airMenu).sizeThatFits(in: CGSize(width: 332, height: 4000)).height
-        snapshot(airMenu, size: CGSize(width: 332, height: airHeight), to: out("menu-airpods"))
-        for pane in [SettingsPane.pointer, .clicking] {
-            let router = SettingsRouter()
-            router.pane = pane
-            snapshot(SettingsView(router: router).environment(model), size: CGSize(width: 820, height: 600),
-                     to: out("settings-\(pane.rawValue)-airpods"), titled: true)
-        }
-        for step in [2, 3, 4] {
-            snapshot(OnboardingView(startAt: step) { _ in }.environment(model), size: CGSize(width: 780, height: 540), to: out("onboarding-\(step)-airpods"))
-        }
-        model.settings.input = .nose
-
-        for (name, phase) in [("framing", CalibrationSession.Phase.framing), ("targets", .targets), ("result", .result)] {
-            let session = CalibrationSession.demo(phase: phase, sample: model.live.sample)
-            snapshot(CalibrationView(session: session, capture: model.pipeline.session), size: CGSize(width: 1200, height: 780), to: out("calibration-\(name)"))
-        }
         print("Wrote screens to \(dir)")
         return 0
     }
