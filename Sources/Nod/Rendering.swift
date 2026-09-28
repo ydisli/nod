@@ -42,7 +42,7 @@ enum Rendering {
 
         // Show that any shortcut can click, next to a right-side key.
         model.settings.clickKeys.rightClick = .shortcut(HotKeySpec(keyCode: 0x31, carbonModifiers: HotKeySpec.controlKey | HotKeySpec.optionKey, display: "⌃⌥Space"))
-        for pane in [SettingsPane.pointer, .clicking, .permissions] {
+        for pane in [SettingsPane.pointer, .clicking, .permissions, .help, .about] {
             let router = SettingsRouter()
             router.pane = pane
             snapshot(SettingsView(router: router).environment(model), size: CGSize(width: 820, height: 600),

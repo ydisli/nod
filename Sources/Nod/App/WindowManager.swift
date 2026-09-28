@@ -79,6 +79,9 @@ final class WindowManager: NSObject, NSPopoverDelegate, NSWindowDelegate {
         let settings = NSMenuItem(title: "Settings…", action: #selector(menuSettings), keyEquivalent: ",")
         settings.target = self
         menu.addItem(settings)
+        let help = NSMenuItem(title: "Help", action: #selector(menuHelp), keyEquivalent: "")
+        help.target = self
+        menu.addItem(help)
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit Nod", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         statusItem.menu = menu
@@ -89,6 +92,7 @@ final class WindowManager: NSObject, NSPopoverDelegate, NSWindowDelegate {
     @objc private func menuToggle() { model.toggleEnabled() }
     @objc private func menuRecentre() { model.recenter() }
     @objc private func menuSettings() { showSettings(pane: nil) }
+    @objc private func menuHelp() { showSettings(pane: .help) }
 
     private var statusSymbol = ""
     private var statusAlpha: CGFloat = 0

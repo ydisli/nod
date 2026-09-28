@@ -2,7 +2,7 @@ import NodCore
 import SwiftUI
 
 enum SettingsPane: String, CaseIterable, Identifiable {
-    case general, pointer, clicking, dwell, shortcuts, permissions, about
+    case general, pointer, clicking, dwell, shortcuts, permissions, help, about
 
     var id: String { rawValue }
 
@@ -14,6 +14,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .dwell: "Dwell Clicking"
         case .shortcuts: "Shortcuts"
         case .permissions: "Permissions"
+        case .help: "Help"
         case .about: "About Nod"
         }
     }
@@ -26,19 +27,21 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .dwell: "timer"
         case .shortcuts: "keyboard.fill"
         case .permissions: "lock.shield.fill"
+        case .help: "questionmark.circle.fill"
         case .about: "info.circle.fill"
         }
     }
 
-    var colors: [Color] {
+    var color: Color {
         switch self {
-        case .general: [Color(hex: 0x8E9AAF), Color(hex: 0x5B6475)]
-        case .pointer: [Theme.blue, Color(hex: 0x3563D8)]
-        case .clicking: [Theme.teal, Color(hex: 0x1C9E91)]
-        case .dwell: [Theme.violet, Color(hex: 0x6546D8)]
-        case .shortcuts: [Color(hex: 0x7A8599), Color(hex: 0x4E576A)]
-        case .permissions: [Theme.green, Color(hex: 0x23A45A)]
-        case .about: [Theme.violet, Theme.teal]
+        case .general: Color(hex: 0x7D879B)
+        case .pointer: Theme.blue
+        case .clicking: Color(hex: 0x1FA89A)
+        case .dwell: Theme.accent
+        case .shortcuts: Color(hex: 0x6B7488)
+        case .permissions: Color(hex: 0x2FAE62)
+        case .help: Color(hex: 0xE0A43A)
+        case .about: Theme.accent
         }
     }
 
@@ -50,6 +53,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .dwell: "Rest the pointer on something to click it. No gestures needed."
         case .shortcuts: "Keyboard shortcuts that work in every app."
         case .permissions: "What Nod needs from macOS, and why."
+        case .help: "How to use Nod, and what to do when something is off."
         case .about: "Open source, on-device, free."
         }
     }
@@ -71,7 +75,7 @@ struct SettingsView: View {
                 .frame(width: 214)
             Divider()
             VStack(spacing: 0) {
-                PaneHeader(symbol: pane.symbol, colors: pane.colors, title: pane.title, subtitle: pane.subtitle)
+                PaneHeader(symbol: pane.symbol, color: pane.color, title: pane.title, subtitle: pane.subtitle)
                 content(pane)
                     // A fresh view per pane, so every pane opens scrolled to the top.
                     .id(pane)
@@ -92,7 +96,7 @@ struct SettingsView: View {
                         router.pane = pane
                     } label: {
                         HStack(spacing: 10) {
-                            IconBadge(symbol: pane.symbol, colors: pane.colors, size: 22)
+                            IconBadge(symbol: pane.symbol, color: pane.color, size: 22)
                             Text(pane.title)
                                 .font(.system(size: 13, weight: pane == selected ? .semibold : .regular))
                                 .foregroundStyle(.primary)
@@ -108,7 +112,7 @@ struct SettingsView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityAddTraits(pane == selected ? .isSelected : [])
-                    if pane == .dwell || pane == .shortcuts {
+                    if pane == .dwell || pane == .permissions {
                         Divider().padding(.vertical, 5).padding(.horizontal, 8)
                     }
                 }
@@ -127,6 +131,7 @@ struct SettingsView: View {
         case .dwell: DwellPane()
         case .shortcuts: ShortcutsPane()
         case .permissions: PermissionsPane()
+        case .help: HelpPane()
         case .about: AboutPane()
         }
     }
@@ -431,7 +436,7 @@ struct GestureRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 12) {
-                IconBadge(symbol: symbol, colors: binding.enabled ? [Theme.teal, Theme.blue] : [.gray.opacity(0.7), .gray.opacity(0.5)], size: 28)
+                IconBadge(symbol: symbol, color: binding.enabled ? Theme.teal : .gray.opacity(0.7), size: 28)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title).font(.system(size: 13, weight: .semibold))
                     Text(instruction).font(.caption).foregroundStyle(.secondary)
@@ -577,7 +582,7 @@ struct KeyRecorder: View {
                 .frame(minWidth: 96)
                 .padding(.vertical, 4)
                 .padding(.horizontal, 8)
-                .background(RoundedRectangle(cornerRadius: 7).fill(recording ? AnyShapeStyle(Theme.anodized.opacity(0.35)) : AnyShapeStyle(.primary.opacity(0.07))))
+                .background(RoundedRectangle(cornerRadius: 7).fill(recording ? AnyShapeStyle(Theme.teal.opacity(0.25)) : AnyShapeStyle(.primary.opacity(0.07))))
                 .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(recording ? Theme.teal : .primary.opacity(0.12), lineWidth: 1))
         }
         .buttonStyle(.plain)
@@ -659,7 +664,7 @@ struct PermissionRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            IconBadge(symbol: symbol, colors: status.isGranted ? [Theme.green, Color(hex: 0x23A45A)] : [Theme.gold, Theme.ember], size: 28)
+            IconBadge(symbol: symbol, color: status.isGranted ? Theme.green : Theme.gold, size: 28)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.system(size: 13, weight: .semibold))
                 Text(detail).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
@@ -678,6 +683,58 @@ struct PermissionRow: View {
     }
 }
 
+// MARK: - Help
+
+struct HelpPane: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        let s = model.settings
+        let keys = s.clickKeys
+        Form {
+            Section("Getting started") {
+                Tip(symbol: "airpodspro", text: "Put in AirPods that support head tracking for spatial audio, such as AirPods Pro or AirPods Max.")
+                Tip(symbol: "power", text: "Press \(shortcut(s.toggleHotKey)) to switch Nod on or off. It is your safety switch.")
+                Tip(symbol: "scope", text: "Look at the middle of the screen and press \(shortcut(s.recenterHotKey)) to recentre. Do it again whenever the pointer and where you look drift apart.")
+                Tip(symbol: "arrow.left.and.right", text: "Turn your head to move the pointer. Small turns make fine moves.")
+            }
+            Section("Clicking") {
+                if keys.enabled, !keys.leftButton.isOff {
+                    Tip(symbol: "keyboard", text: "Tap \(keys.leftButton.shortTitle) to click, tap it twice to double click, hold it to drag.")
+                }
+                if keys.enabled, !keys.rightClick.isOff {
+                    Tip(symbol: "keyboard", text: "Tap \(keys.rightClick.shortTitle) to right click.")
+                }
+                Tip(symbol: HeadGesture.tiltLeft.symbol, text: "Lean your head left to click, keep leaning to drag. Lean right to right click. Leaning never moves the pointer.")
+                Tip(symbol: "timer", text: "Dwell Clicking clicks when you rest on a spot. Its palette picks what the next rest does: right click, double click, drag or scroll.")
+                Tip(symbol: "slider.horizontal.3", text: "Change any of these in Clicking, including your own shortcuts.")
+            }
+            Section("When something is off") {
+                Tip(symbol: "hand.raised", text: "The pointer does not move: open the menu bar panel. Nod needs Accessibility, and your AirPods in your ears.")
+                Tip(symbol: "scope", text: "The pointer drifts from where you look: recentre. Direct motion in Pointer keeps the two lined up best.")
+                Tip(symbol: "arrow.left.arrow.right", text: "It moves the wrong way: Pointer, Reverse left and right, or up and down.")
+                Tip(symbol: "exclamationmark.triangle", text: "It clicks by accident: in Clicking, switch off leaning or nodding, or set their Sensitivity to Big move.")
+                Tip(symbol: "computermouse", text: "You want your mouse back: just move it. Nod steps aside, and \(shortcut(s.toggleHotKey)) stops it completely.")
+            }
+            Section {
+                HStack(spacing: 16) {
+                    Link(destination: URL(string: "https://github.com/ydisli/nod#readme")!) {
+                        Label("Read the guide", systemImage: "book")
+                    }
+                    Link(destination: URL(string: "https://github.com/ydisli/nod/issues")!) {
+                        Label("Report a problem", systemImage: "exclamationmark.bubble")
+                    }
+                }
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    private func shortcut(_ spec: HotKeySpec) -> String {
+        spec.isEnabled ? spec.display : "your shortcut (none set, see Shortcuts)"
+    }
+}
+
 // MARK: - About
 
 struct AboutPane: View {
@@ -685,7 +742,6 @@ struct AboutPane: View {
         ScrollView {
             VStack(spacing: 14) {
                 NodMark(size: 112)
-                    .shadow(color: Theme.blue.opacity(0.35), radius: 24, y: 8)
                     .padding(.top, 10)
                 Text("Nod").font(.system(size: 30, weight: .bold))
                 Text("Your head is the mouse.").font(.system(size: 15)).foregroundStyle(.secondary)
@@ -696,6 +752,12 @@ struct AboutPane: View {
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: 420)
                     .padding(.top, 4)
+                VStack(spacing: 3) {
+                    Text("Made by Yusuf Disli").font(.system(size: 13, weight: .semibold))
+                    Link("yusufdisli.com", destination: URL(string: "https://yusufdisli.com")!)
+                        .font(.system(size: 13))
+                }
+                .padding(.top, 6)
                 HStack(spacing: 10) {
                     Link(destination: URL(string: "https://github.com/ydisli/nod")!) {
                         Label("Source on GitHub", systemImage: "chevron.left.forwardslash.chevron.right")
@@ -735,7 +797,7 @@ struct ChoiceRow: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 12) {
-                IconBadge(symbol: symbol, colors: selected ? [Theme.violet, Theme.blue] : [.gray.opacity(0.55), .gray.opacity(0.4)], size: 28)
+                IconBadge(symbol: symbol, color: selected ? Theme.violet : .gray.opacity(0.55), size: 28)
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
                         Text(title).font(.system(size: 13, weight: .semibold))

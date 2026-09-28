@@ -16,9 +16,7 @@ struct OnboardingView: View {
 
     var body: some View {
         ZStack {
-            Theme.panel
-            RadialGradient(colors: [Theme.violet.opacity(0.22), .clear], center: UnitPoint(x: 0.85, y: 0.1), startRadius: 0, endRadius: 520)
-            RadialGradient(colors: [Theme.teal.opacity(0.12), .clear], center: UnitPoint(x: 0.1, y: 1), startRadius: 0, endRadius: 420)
+            Theme.tourBackdrop
 
             VStack(spacing: 0) {
                 Group {
@@ -52,7 +50,6 @@ struct OnboardingView: View {
         HStack(spacing: 36) {
             VStack(alignment: .leading, spacing: 16) {
                 NodMark(size: 64)
-                    .shadow(color: Theme.blue.opacity(0.4), radius: 18, y: 6)
                 Text("Meet Nod").font(.system(size: 38, weight: .bold))
                 Text("Your head is the mouse.")
                     .font(.system(size: 20, weight: .medium))
@@ -80,7 +77,7 @@ struct OnboardingView: View {
                 }
             }
             .frame(width: 290, height: 330)
-            .shadow(color: .black.opacity(0.4), radius: 24, y: 10)
+            .shadow(color: .black.opacity(0.3), radius: 16, y: 8)
         }
     }
 
@@ -153,7 +150,7 @@ struct OnboardingView: View {
             HStack(spacing: 7) {
                 ForEach(0..<steps, id: \.self) { i in
                     Capsule()
-                        .fill(i == step ? AnyShapeStyle(Theme.teal) : AnyShapeStyle(.white.opacity(0.18)))
+                        .fill(i == step ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(.white.opacity(0.18)))
                         .frame(width: i == step ? 22 : 7, height: 7)
                 }
             }
@@ -219,7 +216,7 @@ struct PermissionCard: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            IconBadge(symbol: symbol, colors: status.isGranted ? [Theme.green, Color(hex: 0x23A45A)] : [Theme.blue, Theme.violet], size: 40)
+            IconBadge(symbol: symbol, color: status.isGranted ? Theme.green : Theme.blue, size: 40)
             VStack(alignment: .leading, spacing: 3) {
                 Text(title).font(.system(size: 15, weight: .semibold))
                 Text(detail).font(.system(size: 12)).foregroundStyle(.white.opacity(0.6)).fixedSize(horizontal: false, vertical: true)
@@ -249,7 +246,7 @@ struct ToggleCard: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            IconBadge(symbol: symbol, colors: isOn ? [Theme.teal, Theme.blue] : [.gray.opacity(0.55), .gray.opacity(0.35)], size: 34)
+            IconBadge(symbol: symbol, color: isOn ? Theme.teal : .gray.opacity(0.55), size: 34)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.system(size: 14, weight: .semibold))
                 Text(detail).font(.system(size: 12)).foregroundStyle(.white.opacity(0.6))

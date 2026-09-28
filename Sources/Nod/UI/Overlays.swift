@@ -123,11 +123,10 @@ struct HaloView: View {
                     .frame(width: 46, height: 46)
                 Circle()
                     .trim(from: 0, to: h.dwellProgress)
-                    .stroke(AngularGradient(colors: [Theme.teal, Theme.blue, Theme.violet, Theme.gold], center: .center),
+                    .stroke(Theme.teal,
                             style: StrokeStyle(lineWidth: 4, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                     .frame(width: 46, height: 46)
-                    .shadow(color: Theme.teal.opacity(0.7), radius: 4)
                 Image(systemName: h.dwellAction.symbol)
                     .font(.system(size: 9, weight: .bold))
                     .foregroundStyle(.white)
@@ -279,7 +278,7 @@ struct PaletteView: View {
         .frame(width: 92)
         .background(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(Theme.panel)
+                .fill(Theme.inkRaised)
                 .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(Theme.inkLine, lineWidth: 1))
         )
         .environment(\.colorScheme, .dark)
@@ -306,13 +305,12 @@ struct PaletteButton: View {
             .frame(width: 72, height: 60)
             .background(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(active ? AnyShapeStyle(Theme.anodized) : AnyShapeStyle(Color.white.opacity(0.07)))
+                    .fill(active ? Theme.accent : Color.white.opacity(0.07))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .strokeBorder(.white.opacity(active ? 0.35 : 0.08), lineWidth: 1)
             )
-            .shadow(color: active ? Theme.blue.opacity(0.5) : .clear, radius: 8)
             .contentShape(RoundedRectangle(cornerRadius: 14))
         }
         .buttonStyle(.plain)

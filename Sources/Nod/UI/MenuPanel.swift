@@ -151,6 +151,12 @@ struct MenuPanel: View {
                 Label("Settings…", systemImage: "gearshape")
             }
             .keyboardShortcut(",", modifiers: .command)
+            Button {
+                model.windows?.showSettings(pane: .help)
+            } label: {
+                Image(systemName: "questionmark.circle")
+            }
+            .help("Help")
             Spacer()
             RateLabel()
             Spacer()

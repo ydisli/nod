@@ -31,8 +31,8 @@ disability, an injury or RSI, and for anyone who wants their hands free.
 
 | Way | Does |
 | --- | --- |
-| Tap right ⌘ | Click. Tap twice to double click, hold to drag |
-| Tap right ⌥ | Right click |
+| Tap right ⌘, or your own shortcut | Click. Tap twice to double click, hold to drag |
+| Tap right ⌥, or your own shortcut | Right click |
 | Lean your head left | Click, keep leaning to drag |
 | Lean your head right | Right click |
 | Nod | Off at first (double click), since glancing at the keyboard looks similar |
@@ -40,7 +40,8 @@ disability, an injury or RSI, and for anyone who wants their hands free.
 
 A key press never moves your head, so key clicks land exactly where you aimed. Only the keys on
 the right side count, and only when pressed on their own, so shortcuts keep working. Nod never
-records what you type. Any right-hand modifier can take any of these jobs.
+records what you type. Each click can also take any shortcut you record, such as F5 or ⌃⌥Space;
+those are taken system wide only while Nod is on. Settings has a Help page.
 
 Leaning does not steer the pointer, so a lean can be held while you turn. While a lean forms, the
 pointer holds still so the click lands where you aimed, and a nod clicks where the pointer was
@@ -58,7 +59,7 @@ login, and it steps aside the moment a helper touches the real mouse.
 </p>
 
 <p align="center">
-  <img src="docs/screens/settings-clicking.png" width="720" alt="Clicking settings: keys, and lean gestures with live meters">
+  <img src="docs/screens/settings-clicking.png" width="720" alt="Clicking settings: click keys and recorded shortcuts, and lean gestures with live meters">
 </p>
 
 ## Light on your Mac
@@ -161,5 +162,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-MIT. See [LICENSE](LICENSE). Smoothing by the 1€ filter of Géry Casiez, Nicolas Roussel and
-Daniel Vogel (CHI 2012).
+MIT. See [LICENSE](LICENSE). Made by Yusuf Disli, [yusufdisli.com](https://yusufdisli.com).
+Smoothing by the 1€ filter of Géry Casiez, Nicolas Roussel and Daniel Vogel (CHI 2012).
