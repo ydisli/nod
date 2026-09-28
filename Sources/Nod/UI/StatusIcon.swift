@@ -4,6 +4,7 @@ import AppKit
 /// on the nose, drawn as a template so macOS tints it for light and dark
 /// menu bars. Its own shape, so it is never mistaken for the AirPods icon
 /// macOS shows while headphones are connected.
+@MainActor
 enum StatusIcon {
     static let image: NSImage = {
         let img = NSImage(size: NSSize(width: 18, height: 18), flipped: true) { _ in
