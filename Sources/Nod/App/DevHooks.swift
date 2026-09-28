@@ -46,6 +46,9 @@ enum DevHooks {
             }
         case "pause": model.perform(.pauseToggle)
         case "keytest": postRightCommandTap()
+        case "otherkeytest": postHarmlessKey()
+        case "ctrltap": postLeftControl(withKey: false)
+        case "ctrlchord": postLeftControl(withKey: true)
         case "shortcuttest": testShortcut(model: model)
         case "quit": NSApp.terminate(nil)
         default: print("Unknown dev command: \(command)")
@@ -81,6 +84,35 @@ enum DevHooks {
                 MainActor.assumeIsolated { model.settings.clickKeys.doubleClick = before }
             }
         }
+    }
+
+    /// Posts F13, which no app uses, to check that other keys reach the
+    /// monitor (they are what stops a modifier in a shortcut from clicking).
+    private static func postHarmlessKey() {
+        let source = CGEventSource(stateID: .hidSystemState)
+        for down in [true, false] {
+            CGEvent(keyboardEventSource: source, virtualKey: 0x69, keyDown: down)?.post(tap: .cghidEventTap)
+        }
+    }
+
+    /// Left ⌃ alone, or left ⌃ held around F13 (like ⌃A, minus the A).
+    private static func postLeftControl(withKey: Bool) {
+        let source = CGEventSource(stateID: .hidSystemState)
+        func flags(_ down: Bool) {
+            guard let e = CGEvent(keyboardEventSource: source, virtualKey: 0x3B, keyDown: down) else { return }
+            e.type = .flagsChanged
+            e.flags = down ? ClickKey.leftControl.eventFlags : []
+            e.post(tap: .cghidEventTap)
+        }
+        flags(true)
+        usleep(40_000)
+        if withKey {
+            for down in [true, false] {
+                CGEvent(keyboardEventSource: source, virtualKey: 0x69, keyDown: down)?.post(tap: .cghidEventTap)
+            }
+            usleep(40_000)
+        }
+        flags(false)
     }
 
     private static func snapshot(to dir: String) {

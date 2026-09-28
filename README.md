@@ -31,8 +31,9 @@ disability, an injury or RSI, and for anyone who wants their hands free.
 
 | Way | Does |
 | --- | --- |
-| Tap right ⌘, or your own shortcut | Click. Tap twice to double click, hold to drag |
+| Tap right ⌘, or your own shortcut | Click. Tap twice to double click |
 | Tap right ⌥, or your own shortcut | Right click |
+| Tap a drag key you pick | Pick up; move your head; tap again to drop |
 | Lean your head left | Click, keep leaning to drag |
 | Lean your head right | Right click |
 | Nod | Off at first (double click), since glancing at the keyboard looks similar |
@@ -40,9 +41,10 @@ disability, an injury or RSI, and for anyone who wants their hands free.
 
 A key press never moves your head, so key clicks land exactly where you aimed. Any modifier key
 on either side can click (⌘ ⌥ ⌃ ⇧, left or right; the right-hand ones are the default). It counts
-only when tapped on its own, so shortcuts and ⌘-clicks keep working. Nod never records what you
-type. Each click can also take any shortcut you record, such as F5 or ⌃⌥Space; those are taken
-system wide only while Nod is on. Settings has a Help page.
+only when tapped on its own, and holding it never presses the button, so shortcuts, typing and
+⌘-clicks keep working. Nod never records what you type. Each click can also take any shortcut you
+record, such as F5 or ⌃⌥Space; those are taken system wide only while Nod is on, and a recorded
+click key can be held to drag. Settings has a Help page.
 
 Leaning does not steer the pointer, so a lean can be held while you turn. While a lean forms, the
 pointer holds still so the click lands where you aimed, and a nod clicks where the pointer was

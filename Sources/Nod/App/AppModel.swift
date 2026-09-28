@@ -62,6 +62,7 @@ final class AppModel {
     @ObservationIgnored private var lastHead: HeadPose?
     /// For diagnostics: presses and releases of recorded click shortcuts.
     @ObservationIgnored private(set) var shortcutEvents = 0
+    @ObservationIgnored private var keyDecisions = 0
     @ObservationIgnored private lazy var keyMonitor = KeyClickMonitor { [weak self] event in
         self?.pipeline.key(event)
     }
@@ -200,7 +201,7 @@ final class AppModel {
             line += String(format: "yaw=%.1f pitch=%.1f roll=%.1f ", h.yaw * deg, h.pitch * deg, h.roll * deg)
         }
         if let e = headphoneError { line += "error=\"\(e)\" " }
-        line += "keys=\(keyMonitor.isRunning ? "on" : "off") keyEvents=\(keyMonitor.seen) shortcutEvents=\(shortcutEvents) "
+        line += "keys=\(keyMonitor.isRunning ? "on" : "off") keyEvents=\(keyMonitor.seen) otherKeys=\(keyMonitor.others) decisions=\(keyDecisions) shortcutEvents=\(shortcutEvents) "
         return line + "frames=\(frameClients.sorted()) previews=\(previewClients.sorted())"
     }
 
@@ -278,6 +279,7 @@ final class AppModel {
         switch event {
         case let .frame(report):
             lastHead = report.head
+            keyDecisions = report.keyDecisions
             // The slow parts of the status, written only when they change.
             var coarse = report.status
             coarse.pointer = .zero

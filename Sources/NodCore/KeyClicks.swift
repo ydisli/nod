@@ -136,10 +136,14 @@ public enum ClickTrigger: Codable, Sendable, Hashable {
 /// Which key does what. One key, one job.
 public struct ClickKeys: Codable, Sendable, Equatable {
     public var enabled = true
-    /// Tap to click, tap twice to double click, hold to drag.
+    /// Tap to click, tap twice to double click. A recorded shortcut can also
+    /// be held to drag; a modifier cannot, because holding ⇧ or ⌘ a moment
+    /// before the next key is how people type.
     public var leftButton: ClickTrigger = .modifier(.rightCommand)
     public var rightClick: ClickTrigger = .modifier(.rightOption)
     public var doubleClick: ClickTrigger = .off
+    /// Tap to pick up, tap again to drop.
+    public var drag: ClickTrigger = .off
 
     public init() {}
 
@@ -150,9 +154,10 @@ public struct ClickKeys: Codable, Sendable, Equatable {
         leftButton = c.value(.leftButton, default: d.leftButton)
         rightClick = c.value(.rightClick, default: d.rightClick)
         doubleClick = c.value(.doubleClick, default: d.doubleClick)
+        drag = c.value(.drag, default: d.drag)
     }
 
-    public var all: [ClickTrigger] { [leftButton, rightClick, doubleClick] }
+    public var all: [ClickTrigger] { [leftButton, rightClick, doubleClick, drag] }
 
     public func isBound(_ trigger: ClickTrigger) -> Bool {
         !trigger.isOff && all.contains(trigger)
@@ -179,15 +184,18 @@ public enum KeyClickOutput: Equatable, Sendable {
     case release
     case rightClick
     case doubleClick
+    /// Pick up, or drop what is being dragged.
+    case dragToggle
 }
 
 /// Tells a tap or a hold of a click key from a shortcut.
 ///
 /// A tap counts on release. For a lone modifier key, pressing any
 /// other key meanwhile turns it into a shortcut, so it never clicks. A
-/// recorded shortcut is deliberate, so other keys do not cancel it. Holding
-/// the left button key for `holdDelay` presses the button until the key
-/// comes up, which is how you drag.
+/// recorded shortcut is deliberate, so other keys do not cancel it, and
+/// holding it as the click key for `holdDelay` presses the button until it
+/// comes up, which is one way to drag. The drag key is the other: tap to
+/// pick up, tap to drop.
 public struct KeyClickDetector: Sendable {
     public static let holdDelay = 0.3
     /// Held longer than this without a drag: probably not meant as a click.
@@ -245,6 +253,7 @@ public struct KeyClickDetector: Sendable {
             if t == keys.leftButton { return [.tap] }
             if t == keys.rightClick { return [.rightClick] }
             if t == keys.doubleClick { return [.doubleClick] }
+            if t == keys.drag { return [.dragToggle] }
         case .otherKey:
             if var h = held, !h.pressed, h.canBeSpoiled {
                 h.spoiled = true
@@ -256,7 +265,7 @@ public struct KeyClickDetector: Sendable {
 
     /// Call regularly (the engine's clock) so a hold turns into a press.
     public mutating func tick(time: Double, keys: ClickKeys) -> [KeyClickOutput] {
-        guard keys.enabled, var h = held, !h.pressed, !h.spoiled, h.trigger == keys.leftButton,
+        guard keys.enabled, var h = held, !h.pressed, !h.spoiled, !h.canBeSpoiled, h.trigger == keys.leftButton,
               time - h.since >= Self.holdDelay else { return [] }
         h.pressed = true
         held = h

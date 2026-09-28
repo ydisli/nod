@@ -296,9 +296,10 @@ struct ClickKeysSection: View {
                 Text("A key press does not move your head, so the click lands exactly where you aimed.")
             }
             if model.settings.clickKeys.enabled {
-                row("Click", detail: "Tap twice to double click, hold to drag.", \.leftButton)
+                row("Click", detail: "Tap twice to double click. A recorded key, not ⌘ ⌥ ⌃ ⇧, can also be held to drag.", \.leftButton)
                 row("Right click", detail: nil, \.rightClick)
                 row("Double click", detail: "Optional, tapping the click key twice also works.", \.doubleClick)
+                row("Drag", detail: "Tap to pick up, move your head, tap again to drop.", \.drag)
             }
         } header: {
             Text("Keys")
@@ -340,7 +341,7 @@ struct ClickKeysSection: View {
     /// One key, one job: whoever had this key gives it up.
     private func set(_ new: ClickTrigger, at path: WritableKeyPath<ClickKeys, ClickTrigger>) {
         var keys = model.settings.clickKeys
-        for other in [\ClickKeys.leftButton, \.rightClick, \.doubleClick] where other != path && keys[keyPath: other] == new && !new.isOff {
+        for other in [\ClickKeys.leftButton, \.rightClick, \.doubleClick, \.drag] where other != path && keys[keyPath: other] == new && !new.isOff {
             keys[keyPath: other] = .off
         }
         keys[keyPath: path] = new
@@ -700,11 +701,15 @@ struct HelpPane: View {
             }
             Section("Clicking") {
                 if keys.enabled, !keys.leftButton.isOff {
-                    Tip(symbol: "keyboard", text: "Tap \(keys.leftButton.shortTitle) to click, tap it twice to double click, hold it to drag.")
+                    Tip(symbol: "keyboard", text: "Tap \(keys.leftButton.shortTitle) to click, tap it twice to double click.")
                 }
                 if keys.enabled, !keys.rightClick.isOff {
                     Tip(symbol: "keyboard", text: "Tap \(keys.rightClick.shortTitle) to right click.")
                 }
+                if keys.enabled, !keys.drag.isOff {
+                    Tip(symbol: "hand.draw", text: "Tap \(keys.drag.shortTitle) to pick something up, move your head, tap it again to drop.")
+                }
+                Tip(symbol: "keyboard.badge.ellipsis", text: "A key like ⌘ or ⇧ clicks only when tapped on its own. Used in a shortcut such as ⌘A, it does nothing in Nod.")
                 Tip(symbol: HeadGesture.tiltLeft.symbol, text: "Lean your head left to click, keep leaning to drag. Lean right to right click. Leaning never moves the pointer.")
                 Tip(symbol: "timer", text: "Dwell Clicking clicks when you rest on a spot. Its palette picks what the next rest does: right click, double click, drag or scroll.")
                 Tip(symbol: "slider.horizontal.3", text: "Change any of these in Clicking, including your own shortcuts.")

@@ -11,8 +11,9 @@ import NodCore
 final class KeyClickMonitor {
     private var monitors: [Any] = []
     private let onEvent: (KeyClickEvent) -> Void
-    /// For diagnostics: click key events seen since start.
+    /// For diagnostics: click key events and other keys seen since start.
     private(set) var seen = 0
+    private(set) var others = 0
 
     init(onEvent: @escaping (KeyClickEvent) -> Void) {
         self.onEvent = onEvent
@@ -48,6 +49,7 @@ final class KeyClickMonitor {
         // Recording a shortcut: the keys are for the recorder, not clicks.
         guard !HotKeyCenter.shared.isSuspended else { return }
         guard e.type == .flagsChanged else {
+            others += 1
             onEvent(.otherKey)
             return
         }

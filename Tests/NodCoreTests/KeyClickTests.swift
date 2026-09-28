@@ -13,13 +13,21 @@ struct KeyClickTests {
         #expect(d.handle(.up(.modifier(.rightCommand)), time: 0.12, keys: keys) == [.tap])
     }
 
-    @Test func holdPressesThenReleases() {
+    @Test func holdingAModifierNeverPresses() {
+        // Holding ⇧ or ⌘ a moment before the next key is ordinary typing.
         var d = KeyClickDetector()
         _ = d.handle(.down(.modifier(.rightCommand)), time: 0, keys: keys)
-        #expect(d.tick(time: 0.2, keys: keys).isEmpty)
-        #expect(d.tick(time: 0.31, keys: keys) == [.press])
         #expect(d.tick(time: 0.5, keys: keys).isEmpty)
-        #expect(d.handle(.up(.modifier(.rightCommand)), time: 1.4, keys: keys) == [.release])
+        #expect(d.tick(time: 0.9, keys: keys).isEmpty)
+        #expect(d.handle(.up(.modifier(.rightCommand)), time: 1.4, keys: keys).isEmpty)
+    }
+
+    @Test func dragKeyPicksUpAndDrops() {
+        var k = keys
+        k.drag = .modifier(.rightShift)
+        var d = KeyClickDetector()
+        _ = d.handle(.down(.modifier(.rightShift)), time: 0, keys: k)
+        #expect(d.handle(.up(.modifier(.rightShift)), time: 0.1, keys: k) == [.dragToggle])
     }
 
     @Test func shortcutsNeverClick() {
@@ -89,8 +97,8 @@ struct KeyClickTests {
         #expect(d.handle(.up(.modifier(.rightOption)), time: 1.5, keys: keys).isEmpty)
     }
 
-    @Test func engineTapsCountUpAndHoldDrags() {
-        let e = HeadTrackingTests.makeEngine()
+    @Test func engineTapsCountUpAndTheDragKeyDrags() {
+        let e = HeadTrackingTests.makeEngine { $0.clickKeys.drag = .modifier(.rightShift) }
         var cursor = Vec2(800, 500)
         e.reset(cursor: cursor)
         _ = HeadTrackingTests.run(e, from: 0, seconds: 0.5, cursor: &cursor, pose: { _ in .zero })
@@ -101,15 +109,16 @@ struct KeyClickTests {
         #expect(out.contains(.release(.left, at: cursor)))
         #expect(!out.contains { if case .click = $0 { true } else { false } })
 
-        // Held: the button goes down after the delay and stays down while
-        // the head turns, then comes up with the key.
-        _ = e.key(.down(.modifier(.rightCommand)), time: 1.0)
-        out = HeadTrackingTests.run(e, from: 1.0, seconds: 0.4, cursor: &cursor, pose: { _ in .zero })
+        // Tap the drag key: the button goes down and stays down while the
+        // head turns, then a second tap drops.
+        out = e.key(.down(.modifier(.rightShift)), time: 1.0)
+        out += e.key(.up(.modifier(.rightShift)), time: 1.08)
         #expect(out.contains { if case .press(.left, _) = $0 { true } else { false } })
         #expect(e.status.dragging)
-        out = HeadTrackingTests.run(e, from: 1.4, seconds: 0.5, cursor: &cursor, pose: { t in HeadPose(yaw: 0.2 * (t - 1.4), pitch: 0, roll: 0) })
+        out = HeadTrackingTests.run(e, from: 1.1, seconds: 0.5, cursor: &cursor, pose: { t in HeadPose(yaw: 0.2 * (t - 1.1), pitch: 0, roll: 0) })
         #expect(out.contains { if case .move(_, true) = $0 { true } else { false } })
-        out = e.key(.up(.modifier(.rightCommand)), time: 1.9)
+        out = e.key(.down(.modifier(.rightShift)), time: 1.7)
+        out += e.key(.up(.modifier(.rightShift)), time: 1.78)
         #expect(out.contains { if case .release(.left, _) = $0 { true } else { false } })
         #expect(!e.status.dragging)
     }

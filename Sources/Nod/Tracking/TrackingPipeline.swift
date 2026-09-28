@@ -8,6 +8,7 @@ struct FrameReport: Sendable {
     /// Head poses per second arriving from the headphones.
     var rate: Double
     var processingMs: Double
+    var keyDecisions = 0
 }
 
 /// What the on-screen halo around the pointer needs to show.
@@ -217,7 +218,8 @@ final class TrackingPipeline: @unchecked Sendable {
         guard now - lastReport >= interval else { return }
         lastReport = now
         let recent = arrivals.filter { now - $0 <= 1 }.count
-        sink(.frame(FrameReport(head: pose, status: engine.status, rate: Double(recent), processingMs: processingAverage)))
+        sink(.frame(FrameReport(head: pose, status: engine.status, rate: Double(recent), processingMs: processingAverage,
+                                keyDecisions: engine.keyDecisions)))
     }
 
     /// AirPods send nothing when they leave the ears. Tell the engine, so the

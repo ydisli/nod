@@ -405,8 +405,12 @@ public final class PointerEngine {
         return performKeys(keyClicks.handle(event, time: time, keys: settings.clickKeys), time: time)
     }
 
+    /// For diagnostics: click key decisions made, even while paused.
+    public private(set) var keyDecisions = 0
+
     private func performKeys(_ outputs: [KeyClickOutput], time: Double) -> [PointerCommand] {
         guard !outputs.isEmpty else { return [] }
+        keyDecisions += outputs.count
         var out: [PointerCommand] = []
         for o in outputs {
             switch o {
@@ -434,6 +438,8 @@ public final class PointerEngine {
                 out += perform(.rightClick, time: time)
             case .doubleClick:
                 out += perform(.doubleClick, time: time)
+            case .dragToggle:
+                out += perform(.dragToggle, time: time)
             }
         }
         refreshStatus()
