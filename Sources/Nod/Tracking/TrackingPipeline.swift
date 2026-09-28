@@ -113,6 +113,8 @@ final class TrackingPipeline: @unchecked Sendable {
 
     func perform(_ action: PointerAction) {
         queue.async {
+            // Off means off: no toast or sound for a pointer that is not moving.
+            guard self.running else { return }
             self.execute(self.engine.perform(action, time: Self.now()))
             self.publishHUD()
         }
